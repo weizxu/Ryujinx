@@ -13,7 +13,7 @@ namespace ARMeilleure.State
             public fixed ulong V[RegisterConsts.VecRegsCount * 2];
             public fixed uint Flags[RegisterConsts.FlagsCount];
             public fixed uint FpFlags[RegisterConsts.FpFlagsCount];
-            public int Counter;
+            public int InterruptState;
             public ulong DispatchAddress;
             public ulong ExclusiveAddress;
             public ulong ExclusiveValueLow;
@@ -140,8 +140,8 @@ namespace ARMeilleure.State
             GetStorage().FpFlags[(int)flag] = value ? 1u : 0u;
         }
 
-        public int GetCounter() => GetStorage().Counter;
-        public void SetCounter(int value) => GetStorage().Counter = value;
+        public int GetInterruptState() => GetStorage().InterruptState;
+        public void SetInterruptState(int value) => GetStorage().InterruptState = value;
 
         public bool GetRunning() => GetStorage().Running != 0;
         public void SetRunning(bool value) => GetStorage().Running = value ? 1 : 0;
@@ -186,9 +186,9 @@ namespace ARMeilleure.State
             }
         }
 
-        public static int GetCounterOffset()
+        public static int GetInterruptStateOffset()
         {
-            return StorageOffset(ref _dummyStorage, ref _dummyStorage.Counter);
+            return StorageOffset(ref _dummyStorage, ref _dummyStorage.InterruptState);
         }
 
         public static int GetDispatchAddressOffset()

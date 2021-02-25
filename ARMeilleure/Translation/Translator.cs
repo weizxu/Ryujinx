@@ -327,6 +327,15 @@ namespace ARMeilleure.Translation
                     {
                         OpCode opCode = block.OpCodes[opcIndex];
 
+                        // This is just an example, you can use this to limit the range of instructions that will be logged,
+                        // if you don't want everything logged.
+                        if (opCode.Address >= 0 && opCode.Address < 0xFFFFFFFFFFFFFFFF)
+                        {
+                            context.Call(typeof(Translator).GetMethod(nameof(PrintDbgExecInfo)),
+                                Const(opCode.Address), // Address of the current instruction
+                                Register(0, RegisterType.Integer, OperandType.I64)); // Current X0 register value (before the instruction is executed)
+                        }
+
                         context.CurrOp = opCode;
 
                         bool isLastOp = opcIndex == block.OpCodes.Count - 1;
@@ -365,6 +374,11 @@ namespace ARMeilleure.Translation
             range = new Range(rangeStart, rangeEnd);
 
             return context.GetControlFlowGraph();
+        }
+
+        public static void PrintDbgExecInfo(ulong address, ulong x0)
+        {
+            Console.WriteLine($"Executing at address 0x{address:X16} X0 = 0x{x0:X}");
         }
 
         internal static void EmitSynchronization(EmitterContext context)

@@ -294,6 +294,8 @@ namespace ARMeilleure.Translation
             SetDelegateInfo(typeof(SoftFloat64).GetMethod(nameof(SoftFloat64.FPRSqrtStepFused)));
             SetDelegateInfo(typeof(SoftFloat64).GetMethod(nameof(SoftFloat64.FPSqrt)));
             SetDelegateInfo(typeof(SoftFloat64).GetMethod(nameof(SoftFloat64.FPSub)));
+
+            SetDelegateInfo(typeof(Translator).GetMethod(nameof(Translator.PrintDbgExecInfo)));
         }
     }
 }

@@ -277,7 +277,10 @@ namespace Ryujinx.Graphics.Shader.Translation.Optimizations
                 int slot   = operand.GetCbufSlot();
                 int offset = operand.GetCbufOffset();
 
-                return new SearchResult(slot, offset);
+                if (slot == DriverReservedCb)
+                {
+                    return new SearchResult(slot, offset);
+                }
             }
 
             return SearchResult.NotFound;

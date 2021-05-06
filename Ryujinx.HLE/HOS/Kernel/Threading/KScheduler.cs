@@ -216,7 +216,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Threading
                 KThread threadToSignal = context.Schedulers[coreToSignal]._currentThread;
 
                 // Request the thread running on that core to stop and reschedule, if we have one.
-                if (threadToSignal != context.Schedulers[coreToSignal]._idleThread)
+                if (threadToSignal != context.Schedulers[coreToSignal]._idleThread && threadToSignal.IsSchedulable)
                 {
                     threadToSignal.Context.RequestInterrupt();
                 }

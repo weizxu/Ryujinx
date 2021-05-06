@@ -40,7 +40,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Threading
         private ThreadStart _customThreadStart;
         private bool _forcedUnschedulable;
 
-        public bool IsSchedulable => _customThreadStart == null && !_forcedUnschedulable;
+        public bool IsSchedulable => false; // _customThreadStart == null && !_forcedUnschedulable;
 
         public ulong MutexAddress { get; set; }
 

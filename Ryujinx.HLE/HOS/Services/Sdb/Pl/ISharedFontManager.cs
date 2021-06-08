@@ -79,6 +79,7 @@ namespace Ryujinx.HLE.HOS.Services.Sdb.Pl
         }
 
         [CommandHipc(5)]
+        [CommandHipc(6)]
         // GetSharedFontInOrderOfPriority(bytes<8, 1>) -> (u8, u32, buffer<unknown, 6>, buffer<unknown, 6>, buffer<unknown, 6>)
         public ResultCode GetSharedFontInOrderOfPriority(ServiceCtx context)
         {

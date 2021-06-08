@@ -50,6 +50,8 @@ namespace Ryujinx.HLE.HOS
         internal const int IirsSize = 0x8000;
         internal const int TimeSize = 0x1000;
 
+        internal const int AppletCaptureBufferSize = 0x384000;
+
         internal KernelContext KernelContext { get; }
 
         internal Switch Device { get; private set; }
@@ -83,6 +85,8 @@ namespace Ryujinx.HLE.HOS
         internal KSharedMemory FontSharedMem { get; private set; }
         internal KSharedMemory IirsSharedMem { get; private set; }
         internal SharedFontManager Font { get; private set; }
+
+        internal KTransferMemory AppletCaptureBufferTransfer { get; private set; }
 
         internal AccountManager AccountManager { get; private set; }
         internal ContentManager ContentManager { get; private set; }
@@ -129,31 +133,37 @@ namespace Ryujinx.HLE.HOS
             // region used that is used is Application, so we can use the other ones for anything.
             KMemoryRegionManager region = KernelContext.MemoryManager.MemoryRegions[(int)MemoryRegion.NvServices];
 
-            ulong hidPa  = region.Address;
-            ulong fontPa = region.Address + HidSize;
-            ulong iirsPa = region.Address + HidSize + FontSize;
-            ulong timePa = region.Address + HidSize + FontSize + IirsSize;
+            ulong hidPa                 = region.Address;
+            ulong fontPa                = region.Address + HidSize;
+            ulong iirsPa                = region.Address + HidSize + FontSize;
+            ulong timePa                = region.Address + HidSize + FontSize + IirsSize;
+            ulong appletCaptureBufferPa = region.Address + HidSize + FontSize + IirsSize + TimeSize;
 
-            KPageList hidPageList  = new KPageList();
-            KPageList fontPageList = new KPageList();
-            KPageList iirsPageList = new KPageList();
-            KPageList timePageList = new KPageList();
+            KPageList hidPageList                 = new KPageList();
+            KPageList fontPageList                = new KPageList();
+            KPageList iirsPageList                = new KPageList();
+            KPageList timePageList                = new KPageList();
+            KPageList appletCaptureBufferPageList = new KPageList();
 
             hidPageList.AddRange(hidPa,  HidSize  / KPageTableBase.PageSize);
             fontPageList.AddRange(fontPa, FontSize / KPageTableBase.PageSize);
             iirsPageList.AddRange(iirsPa, IirsSize / KPageTableBase.PageSize);
             timePageList.AddRange(timePa, TimeSize / KPageTableBase.PageSize);
+            appletCaptureBufferPageList.AddRange(appletCaptureBufferPa, AppletCaptureBufferSize / KPageTableBase.PageSize);
 
-            var hidStorage = new SharedMemoryStorage(KernelContext, hidPageList);
-            var fontStorage = new SharedMemoryStorage(KernelContext, fontPageList);
-            var iirsStorage = new SharedMemoryStorage(KernelContext, iirsPageList);
-            var timeStorage = new SharedMemoryStorage(KernelContext, timePageList);
+            var hidStorage                 = new SharedMemoryStorage(KernelContext, hidPageList);
+            var fontStorage                = new SharedMemoryStorage(KernelContext, fontPageList);
+            var iirsStorage                = new SharedMemoryStorage(KernelContext, iirsPageList);
+            var timeStorage                = new SharedMemoryStorage(KernelContext, timePageList);
+            var appletCaptureBufferStorage = new SharedMemoryStorage(KernelContext, appletCaptureBufferPageList);
 
             HidStorage = hidStorage;
 
             HidSharedMem  = new KSharedMemory(KernelContext, hidStorage,  0, 0, KMemoryPermission.Read);
             FontSharedMem = new KSharedMemory(KernelContext, fontStorage, 0, 0, KMemoryPermission.Read);
             IirsSharedMem = new KSharedMemory(KernelContext, iirsStorage, 0, 0, KMemoryPermission.Read);
+
+            AppletCaptureBufferTransfer = new KTransferMemory(KernelContext, appletCaptureBufferStorage);
 
             KSharedMemory timeSharedMemory = new KSharedMemory(KernelContext, timeStorage, 0, 0, KMemoryPermission.Read);
 
@@ -162,6 +172,9 @@ namespace Ryujinx.HLE.HOS
             AppletState = new AppletStateMgr(this);
 
             AppletState.SetFocus(true);
+
+            // Required to run applets.
+            AppletState.Messages.Enqueue(MessageInfo.AcquireForeground);
 
             Font = new SharedFontManager(device, fontStorage);
 

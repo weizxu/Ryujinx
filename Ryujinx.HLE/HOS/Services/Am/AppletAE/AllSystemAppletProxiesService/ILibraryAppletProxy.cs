@@ -1,12 +1,13 @@
+﻿using Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.LibraryAppletProxy;
 using Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.SystemAppletProxy;
 
 namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService
 {
-    class ISystemAppletProxy : IpcService
+    class ILibraryAppletProxy : IpcService
     {
         private readonly long _pid;
 
-        public ISystemAppletProxy(long pid)
+        public ILibraryAppletProxy(long pid)
         {
             _pid = pid;
         }
@@ -56,6 +57,15 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService
             return ResultCode.Success;
         }
 
+        [CommandHipc(10)]
+        // GetProcessWindingController() -> object<nn::am::service::IProcessWindingController>
+        public ResultCode GetProcessWindingController(ServiceCtx context)
+        {
+            MakeObject(context, new IProcessWindingController());
+
+            return ResultCode.Success;
+        }
+
         [CommandHipc(11)]
         // GetLibraryAppletCreator() -> object<nn::am::service::ILibraryAppletCreator>
         public ResultCode GetLibraryAppletCreator(ServiceCtx context)
@@ -66,28 +76,19 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService
         }
 
         [CommandHipc(20)]
-        // GetHomeMenuFunctions() -> object<nn::am::service::IHomeMenuFunctions>
-        public ResultCode GetHomeMenuFunctions(ServiceCtx context)
+        // OpenLibraryAppletSelfAccessor() -> object<nn::am::service::ILibraryAppletSelfAccessor>
+        public ResultCode OpenLibraryAppletSelfAccessor(ServiceCtx context)
         {
-            MakeObject(context, new IHomeMenuFunctions(context.Device.System));
+            MakeObject(context, new ILibraryAppletSelfAccessor());
 
             return ResultCode.Success;
         }
 
         [CommandHipc(21)]
-        // GetGlobalStateController() -> object<nn::am::service::IGlobalStateController>
-        public ResultCode GetGlobalStateController(ServiceCtx context)
+        // GetAppletCommonFunctions() -> object<nn::am::service::IAppletCommonFunctions>
+        public ResultCode GetAppletCommonFunctions(ServiceCtx context)
         {
-            MakeObject(context, new IGlobalStateController());
-
-            return ResultCode.Success;
-        }
-
-        [CommandHipc(22)]
-        // GetApplicationCreator() -> object<nn::am::service::IApplicationCreator>
-        public ResultCode GetApplicationCreator(ServiceCtx context)
-        {
-            MakeObject(context, new IApplicationCreator());
+            MakeObject(context, new IAppletCommonFunctions());
 
             return ResultCode.Success;
         }

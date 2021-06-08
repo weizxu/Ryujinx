@@ -225,6 +225,17 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
             return ResultCode.Success;
         }
 
+        [CommandHipc(41)] // 4.0.0+
+        // IsSystemBufferSharingEnabled() -> u8
+        public ResultCode IsSystemBufferSharingEnabled(ServiceCtx context)
+        {
+            context.ResponseData.Write(false);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceAm);
+
+            return ResultCode.NotAvailable;
+        }
+
         [CommandHipc(44)] // 10.0.0+
         // CreateManagedDisplaySeparableLayer() -> (u64, u64)
         public ResultCode CreateManagedDisplaySeparableLayer(ServiceCtx context)

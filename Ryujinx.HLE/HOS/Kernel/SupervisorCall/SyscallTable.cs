@@ -73,6 +73,8 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                 { 0x43, nameof(Syscall64.ReplyAndReceive64)                },
                 { 0x44, nameof(Syscall64.ReplyAndReceiveWithUserBuffer64)  },
                 { 0x45, nameof(Syscall64.CreateEvent64)                    },
+                { 0x51, nameof(Syscall64.MapTransferMemory64)              },
+                { 0x52, nameof(Syscall64.UnmapTransferMemory64)            },
                 { 0x65, nameof(Syscall64.GetProcessList64)                 },
                 { 0x6f, nameof(Syscall64.GetSystemInfo64)                  },
                 { 0x70, nameof(Syscall64.CreatePort64)                     },

@@ -233,6 +233,35 @@ namespace Ryujinx.HLE.HOS.Services.Settings
             return ResultCode.Success;
         }
 
+        [CommandHipc(77)]
+        // GetDeviceNickName() -> buffer<nn::settings::system::DeviceNickName, 0x16>
+        public ResultCode GetDeviceNickName(ServiceCtx context)
+        {
+            // NOTE: If deviceNickName is null ResultCode.NullDeviceNicknameBuffer is returned.
+            //       Doesn't occur in our case.
+
+            ulong deviceNickNameBufferPosition = context.Request.ReceiveBuff[0].Position;
+            ulong deviceNickNameBufferSize     = context.Request.ReceiveBuff[0].Size;
+
+            // TODO: Check the buffer size maybe ?
+
+           context.Memory.Write(deviceNickNameBufferPosition, Encoding.ASCII.GetBytes("Ryujinx"));
+   
+            return ResultCode.Success;
+        }
+
+        [CommandHipc(90)]
+        // GetMiiAuthorId() -> nn::util::Uuid
+        public ResultCode GetMiiAuthorId(ServiceCtx context)
+        {
+            // NOTE: If miiAuthorId is null ResultCode.NullMiiAuthorIdBuffer is returned.
+            //       Doesn't occur in our case.
+
+            context.ResponseData.Write(new Guid("350d07ec-631e-41fc-bb11-0e8e6de25a14").ToByteArray());
+
+            return ResultCode.Success;
+        }
+
         public byte[] GetFirmwareData(Switch device)
         {
             const ulong SystemVersionTitleId = 0x0100000000000809;

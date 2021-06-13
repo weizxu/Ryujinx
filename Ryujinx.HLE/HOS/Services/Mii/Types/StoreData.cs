@@ -49,26 +49,30 @@ namespace Ryujinx.HLE.HOS.Services.Mii.Types
 
         public bool IsValidDataCrc()
         {
-            return true; // DataCrc == CalculateDataCrc(); // FIX ME
+            return Helper.CalculateCrc16(AsSpanWithoutDeviceCrc(), 0, false) == 0;
         }
 
         public bool IsValidDeviceCrc()
         {
-            return true; // DeviceCrc == CalculateDeviceCrc(); // FIX ME
+            UInt128 deviceId = Helper.GetDeviceId();
+
+            ushort deviceIdCrc16 = Helper.CalculateCrc16(SpanHelpers.AsByteSpan(ref deviceId), 0, false);
+
+            return Helper.CalculateCrc16(AsSpan(), deviceIdCrc16, false) == 0;
         }
 
         private ushort CalculateDataCrc()
         {
-            return Helper.CalculateCrc16BE(AsSpanWithoutCrc());
+            return Helper.CalculateCrc16(AsSpanWithoutDeviceCrc(), 0, true);
         }
 
         private ushort CalculateDeviceCrc()
         {
             UInt128 deviceId = Helper.GetDeviceId();
 
-            ushort deviceIdCrc16 = Helper.CalculateCrc16BE(SpanHelpers.AsByteSpan(ref deviceId));
+            ushort deviceIdCrc16 = Helper.CalculateCrc16(SpanHelpers.AsByteSpan(ref deviceId), 0, false);
 
-            return Helper.CalculateCrc16BE(AsSpanWithoutDeviceCrc(), deviceIdCrc16);
+            return Helper.CalculateCrc16(AsSpan(), deviceIdCrc16, true);
         }
 
         private ReadOnlySpan<byte> AsSpan()

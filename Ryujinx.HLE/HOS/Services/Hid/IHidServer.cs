@@ -728,16 +728,27 @@ namespace Ryujinx.HLE.HOS.Services.Hid
         }
 
         [CommandHipc(108)]
-        // GetPlayerLedPattern(uint NpadId) -> ulong LedPattern
+        // GetPlayerLedPattern(u32 npad_id) -> u64 led_pattern
         public ResultCode GetPlayerLedPattern(ServiceCtx context)
         {
-            NpadIdType npadId = (NpadIdType)context.RequestData.ReadInt32();
+            NpadIdType npadId = (NpadIdType)context.RequestData.ReadUInt32();
 
-            long ledPattern = HidUtils.GetLedPatternFromNpadId(npadId);
+            ulong ledPattern = npadId switch
+            {
+                NpadIdType.Player1  => 0b0001,
+                NpadIdType.Player2  => 0b0011,
+                NpadIdType.Player3  => 0b0111,
+                NpadIdType.Player4  => 0b1111,
+                NpadIdType.Player5  => 0b1001,
+                NpadIdType.Player6  => 0b0101,
+                NpadIdType.Player7  => 0b1101,
+                NpadIdType.Player8  => 0b0110,
+                NpadIdType.Unknown  => 0b0000,
+                NpadIdType.Handheld => 0b0000,
+                _ => throw new ArgumentOutOfRangeException()
+            };
 
             context.ResponseData.Write(ledPattern);
-
-            Logger.Stub?.PrintStub(LogClass.ServiceHid, new { npadId, ledPattern });
 
             return ResultCode.Success;
         }

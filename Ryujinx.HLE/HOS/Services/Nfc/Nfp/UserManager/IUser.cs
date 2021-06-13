@@ -1,4 +1,5 @@
-﻿using Ryujinx.Common.Memory;
+﻿using Ryujinx.Common.Logging;
+using Ryujinx.Common.Memory;
 using Ryujinx.Cpu;
 using Ryujinx.HLE.Exceptions;
 using Ryujinx.HLE.HOS.Ipc;
@@ -643,6 +644,7 @@ namespace Ryujinx.HLE.HOS.Services.Nfc.Nfp
         }
 
         [CommandHipc(14)]
+        [CommandHipc(102)] // ISystem
         // GetRegisterInfo(bytes<8, 4>) -> buffer<unknown<0x100>, 0x1a>
         public ResultCode GetRegisterInfo(ServiceCtx context)
         {

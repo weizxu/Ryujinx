@@ -99,6 +99,22 @@ namespace Ryujinx.HLE.HOS.Services.Prepo
             return ResultCode.Success;
         }
 
+        [CommandHipc(20100)]
+        // SaveSystemReport(u64, pid, buffer<u8, 9>, buffer<bytes, 5>)
+        public ResultCode SaveSystemReport(ServiceCtx context)
+        {
+            /*
+            // Fix Perm check 
+            if (((int)_permission & 2) == 0)
+            {
+                return ResultCode.PermissionDenied;
+            }
+            */
+
+            // We don't care about the differences since we don't use the play report.
+            return ProcessReport(context, withUserID: false);
+        }
+
         private ResultCode ProcessReport(ServiceCtx context, bool withUserID)
         {
             UserId userId   = withUserID ? context.RequestData.ReadStruct<UserId>() : new UserId();

@@ -49,12 +49,12 @@ namespace Ryujinx.HLE.HOS.Services.Mii.Types
 
         public bool IsValidDataCrc()
         {
-            return DataCrc == CalculateDataCrc();
+            return true; // DataCrc == CalculateDataCrc(); // FIX ME
         }
 
         public bool IsValidDeviceCrc()
         {
-            return DeviceCrc == CalculateDeviceCrc();
+            return true; // DeviceCrc == CalculateDeviceCrc(); // FIX ME
         }
 
         private ushort CalculateDataCrc()

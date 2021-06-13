@@ -8,8 +8,17 @@ namespace Ryujinx.HLE.HOS.Services.Mii
         public IImageDatabaseService(ServiceCtx context) { }
 
         [CommandHipc(0)]
-        // Initialize()
+        // Initialize???
         public ResultCode Initialize(ServiceCtx context)
+        {
+            Logger.Stub?.PrintStub(LogClass.ServiceMii);
+
+            return ResultCode.Success;
+        }
+
+        [CommandHipc(11)]
+        // GetCount???
+        public ResultCode GetCount(ServiceCtx context)
         {
             Logger.Stub?.PrintStub(LogClass.ServiceMii);
 

@@ -39,6 +39,7 @@ namespace Ryujinx.Common.Logging
         ServiceLm,
         ServiceMii,
         ServiceMm,
+        ServiceNfc,
         ServiceNfp,
         ServiceNgct,
         ServiceNifm,

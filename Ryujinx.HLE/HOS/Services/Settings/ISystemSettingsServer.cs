@@ -7,6 +7,7 @@ using LibHac.FsSystem.NcaUtils;
 using Ryujinx.Common.Logging;
 using Ryujinx.HLE.FileSystem;
 using Ryujinx.HLE.HOS.SystemState;
+using Ryujinx.HLE.Utilities;
 using System;
 using System.IO;
 using System.Text;
@@ -257,7 +258,8 @@ namespace Ryujinx.HLE.HOS.Services.Settings
             // NOTE: If miiAuthorId is null ResultCode.NullMiiAuthorIdBuffer is returned.
             //       Doesn't occur in our case.
 
-            context.ResponseData.Write(new Guid("350d07ec-631e-41fc-bb11-0e8e6de25a14").ToByteArray());
+            context.ResponseData.Write((ulong)0);
+            context.ResponseData.Write((ulong)1);
 
             return ResultCode.Success;
         }

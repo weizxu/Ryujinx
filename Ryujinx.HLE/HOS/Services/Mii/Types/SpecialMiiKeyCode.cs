@@ -11,7 +11,7 @@ namespace Ryujinx.HLE.HOS.Services.Mii.Types
 
         public bool IsEnabledSpecialMii()
         {
-            return false; // RawValue == SpecialMiiMagic; // FIX ME
+            return RawValue == SpecialMiiMagic;
         }
     }
 }

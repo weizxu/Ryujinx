@@ -754,7 +754,7 @@ namespace Ryujinx.HLE.HOS.Services.Hid
         }
 
         [CommandHipc(109)] // 5.0.0+
-        // ActivateNpadWithRevision(nn::applet::AppletResourceUserId, int Unknown)
+        // ActivateNpadWithRevision(nn::applet::AppletResourceUserId, int revision)
         public ResultCode ActivateNpadWithRevision(ServiceCtx context)
         {
             int  revision             = context.RequestData.ReadInt32();
@@ -791,32 +791,46 @@ namespace Ryujinx.HLE.HOS.Services.Hid
         }
 
         [CommandHipc(120)]
-        // SetNpadJoyHoldType(nn::applet::AppletResourceUserId, long NpadJoyHoldType)
+        // SetNpadJoyHoldType(nn::applet::AppletResourceUserId, ulong NpadJoyHoldType)
         public ResultCode SetNpadJoyHoldType(ServiceCtx context)
         {
             long appletResourceUserId = context.RequestData.ReadInt64();
-            context.Device.Hid.Npads.JoyHold = (NpadJoyHoldType)context.RequestData.ReadInt64();
 
-            Logger.Stub?.PrintStub(LogClass.ServiceHid, new {
-                    appletResourceUserId,
-                    context.Device.Hid.Npads.JoyHold
-                });
+            NpadJoyHoldType npadJoyHoldType = (NpadJoyHoldType)context.RequestData.ReadInt64();
+
+            if (npadJoyHoldType > NpadJoyHoldType.Vertical)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+
+            foreach (PlayerIndex playerIndex in context.Device.Hid.Npads.GetSupportedPlayers())
+            {
+                if (HidUtils.GetNpadIdTypeFromIndex(playerIndex) > NpadIdType.Handheld)
+                {
+                    return ResultCode.InvalidNpadIdType;
+                }
+            }
+
+            context.Device.Hid.Npads.JoyHold = npadJoyHoldType;
 
             return ResultCode.Success;
         }
 
         [CommandHipc(121)]
-        // GetNpadJoyHoldType(nn::applet::AppletResourceUserId) -> long NpadJoyHoldType
+        // GetNpadJoyHoldType(nn::applet::AppletResourceUserId) -> ulong NpadJoyHoldType
         public ResultCode GetNpadJoyHoldType(ServiceCtx context)
         {
             long appletResourceUserId = context.RequestData.ReadInt64();
 
-            context.ResponseData.Write((long)context.Device.Hid.Npads.JoyHold);
+            foreach (PlayerIndex playerIndex in context.Device.Hid.Npads.GetSupportedPlayers())
+            {
+                if (HidUtils.GetNpadIdTypeFromIndex(playerIndex) > NpadIdType.Handheld)
+                {
+                    return ResultCode.InvalidNpadIdType;
+                }
+            }
 
-            Logger.Stub?.PrintStub(LogClass.ServiceHid, new {
-                    appletResourceUserId,
-                    context.Device.Hid.Npads.JoyHold
-                });
+            context.ResponseData.Write((long)context.Device.Hid.Npads.JoyHold);
 
             return ResultCode.Success;
         }

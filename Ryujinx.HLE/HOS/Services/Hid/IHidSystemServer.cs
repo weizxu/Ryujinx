@@ -1,5 +1,6 @@
 ﻿using Ryujinx.Common.Logging;
-using Ryujinx.HLE.HOS.Services.Hid.Types.SharedMemory.Npad;
+using Ryujinx.HLE.HOS.Services.Hid.HidServer;
+using Ryujinx.HLE.HOS.Services.Hid.Types;
 
 namespace Ryujinx.HLE.HOS.Services.Hid
 {
@@ -20,46 +21,36 @@ namespace Ryujinx.HLE.HOS.Services.Hid
         }
 
         [CommandHipc(306)]
-        // GetLastActiveNpad(u32) -> u64, u64
+        // GetLastActiveNpad(u32) -> u8, u8
         public ResultCode GetLastActiveNpad(ServiceCtx context)
         {
-            NpadIdType npadId = (NpadIdType)context.RequestData.ReadUInt32();
+            context.RequestData.ReadUInt32(); // Call seems to read garbage
 
-            // TODO
+            ResultCode resultCode = GetAppletFooterUiTypeImpl(context, out AppletFooterUiType appletFooterUiType);
 
-            context.ResponseData.Write((byte)4);
-            context.ResponseData.Write((byte)4);
+            context.ResponseData.Write((byte)appletFooterUiType);
+            context.ResponseData.Write((byte)0);
 
-            Logger.Stub?.PrintStub(LogClass.ServiceHid, new { npadId });
-
-            return ResultCode.Success;
+            return resultCode;
         }
 
         [CommandHipc(314)] // 9.0.0+
         // GetAppletFooterUiType(u32) -> u8
         public ResultCode GetAppletFooterUiType(ServiceCtx context)
         {
-            // TODO
+            ResultCode resultCode = GetAppletFooterUiTypeImpl(context, out AppletFooterUiType appletFooterUiType);
 
-            NpadIdType npadId = (NpadIdType)context.RequestData.ReadUInt32();
+            context.ResponseData.Write((byte)appletFooterUiType);
 
-            // 0/1 - Nothing
-            // 2 - JoyCon Left Handheld 
-            // 3 - JoyCon Right Handheld 
-            // 4 - Handheld
-            // 5 - JoyCon Paired
-            // 6 - JoyCon Left Vertical
-            // 7 - JoyCon Right Vertical
-            // 8 - JoyCon Left Horizontal
-            // 9 - JoyCon Right Horizontal
-            // 10 - JoyCon Left Horizontal ?
-            // 11 - JoyCon Right Vertical ?
-            // 12 - ProController
-            // 13 - External Controller
+            return resultCode;
+        }
 
-            context.ResponseData.Write((byte)4);
+        private ResultCode GetAppletFooterUiTypeImpl(ServiceCtx context, out AppletFooterUiType appletFooterUiType)
+        {
+            NpadIdType  npadIdType  = (NpadIdType)context.RequestData.ReadUInt32();
+            PlayerIndex playerIndex = HidUtils.GetIndexFromNpadIdType(npadIdType);
 
-            Logger.Stub?.PrintStub(LogClass.ServiceHid, new { npadId });
+            appletFooterUiType = context.Device.Hid.SharedMemory.Npads[(int)playerIndex].InternalState.AppletFooterUiType;
 
             return ResultCode.Success;
         }

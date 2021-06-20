@@ -103,16 +103,26 @@ namespace Ryujinx.HLE.HOS.Services.Prepo
         // SaveSystemReport(u64, pid, buffer<u8, 9>, buffer<bytes, 5>)
         public ResultCode SaveSystemReport(ServiceCtx context)
         {
-            /*
-            // Fix Perm check 
-            if (((int)_permission & 2) == 0)
+            if (((int)_permission & 2) != 0)
             {
                 return ResultCode.PermissionDenied;
             }
-            */
 
             // We don't care about the differences since we don't use the play report.
             return ProcessReport(context, withUserID: false);
+        }
+
+        [CommandHipc(20101)]
+        // SaveSystemReportWithUser(nn::account::Uid, u64, pid, buffer<u8, 9>, buffer<bytes, 5>)
+        public ResultCode SaveSystemReportWithUser(ServiceCtx context)
+        {
+            if (((int)_permission & 2) != 0)
+            {
+                return ResultCode.PermissionDenied;
+            }
+
+            // We don't care about the differences since we don't use the play report.
+            return ProcessReport(context, withUserID: true);
         }
 
         private ResultCode ProcessReport(ServiceCtx context, bool withUserID)

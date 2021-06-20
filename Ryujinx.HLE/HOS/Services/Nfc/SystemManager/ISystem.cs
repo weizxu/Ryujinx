@@ -7,6 +7,7 @@ namespace Ryujinx.HLE.HOS.Services.Nfc.SystemManager
     {
         public ISystem() { }
 
+        [CommandHipc(0)]
         [CommandHipc(400)] // 4.0.0+
         // InitializeSystem()
         public ResultCode InitializeSystem(ServiceCtx context)
@@ -16,6 +17,7 @@ namespace Ryujinx.HLE.HOS.Services.Nfc.SystemManager
             return ResultCode.Success;
         }
 
+        [CommandHipc(2)]
         [CommandHipc(403)] // 4.0.0+
         // GetState() -> u32
         public ResultCode GetState(ServiceCtx context)

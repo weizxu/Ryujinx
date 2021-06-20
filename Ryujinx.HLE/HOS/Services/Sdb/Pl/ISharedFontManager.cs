@@ -79,7 +79,6 @@ namespace Ryujinx.HLE.HOS.Services.Sdb.Pl
         }
 
         [CommandHipc(5)]
-        [CommandHipc(6)]
         // GetSharedFontInOrderOfPriority(bytes<8, 1>) -> (u8, u32, buffer<unknown, 6>, buffer<unknown, 6>, buffer<unknown, 6>)
         public ResultCode GetSharedFontInOrderOfPriority(ServiceCtx context)
         {
@@ -102,6 +101,15 @@ namespace Ryujinx.HLE.HOS.Services.Sdb.Pl
             context.ResponseData.Write((int)SharedFontType.Count);
 
             return ResultCode.Success;
+        }
+
+        [CommandHipc(6)] // 4.0.0+
+        // GetSharedFontInOrderOfPriorityForSystem(bytes<8, 1>) -> (u8, u32, buffer<unknown, 6>, buffer<unknown, 6>, buffer<unknown, 6>)
+        public ResultCode GetSharedFontInOrderOfPriorityForSystem(ServiceCtx context)
+        {
+            // TODO: Check the differencies with GetSharedFontInOrderOfPriority. 
+
+            return GetSharedFontInOrderOfPriority(context);
         }
 
         private bool AddFontToOrderOfPriorityList(ServiceCtx context, SharedFontType fontType, uint offset)

@@ -6,6 +6,7 @@ using LibHac.FsSystem;
 using LibHac.FsSystem.NcaUtils;
 using Ryujinx.Common.Logging;
 using Ryujinx.HLE.FileSystem;
+using Ryujinx.HLE.HOS.Services.Account.Acc;
 using Ryujinx.HLE.HOS.SystemState;
 using Ryujinx.HLE.Utilities;
 using System;
@@ -229,7 +230,7 @@ namespace Ryujinx.HLE.HOS.Services.Settings
             // NOTE: When set to true, is automatically synced with the internet.
             context.ResponseData.Write(true);
 
-            Logger.Stub?.PrintStub(LogClass.ServiceSet, "Stubbed");
+            Logger.Stub?.PrintStub(LogClass.ServiceSet);
 
             return ResultCode.Success;
         }
@@ -244,10 +245,13 @@ namespace Ryujinx.HLE.HOS.Services.Settings
             ulong deviceNickNameBufferPosition = context.Request.ReceiveBuff[0].Position;
             ulong deviceNickNameBufferSize     = context.Request.ReceiveBuff[0].Size;
 
-            // TODO: Check the buffer size maybe ?
+            if (deviceNickNameBufferSize != 0x80)
+            {
+                Logger.Warning?.Print(LogClass.ServiceSet, "Wrong buffer size");
+            }
 
-           context.Memory.Write(deviceNickNameBufferPosition, Encoding.ASCII.GetBytes("Ryujinx"));
-   
+            context.Memory.Write(deviceNickNameBufferPosition, Encoding.ASCII.GetBytes("Ryujinx" + '\0'));
+
             return ResultCode.Success;
         }
 
@@ -258,8 +262,9 @@ namespace Ryujinx.HLE.HOS.Services.Settings
             // NOTE: If miiAuthorId is null ResultCode.NullMiiAuthorIdBuffer is returned.
             //       Doesn't occur in our case.
 
-            context.ResponseData.Write((ulong)0);
-            context.ResponseData.Write((ulong)1);
+            UInt128 miiAuthorId = new UInt128("5279754d69694e780000000000000000");
+
+            miiAuthorId.Write(context.ResponseData);
 
             return ResultCode.Success;
         }

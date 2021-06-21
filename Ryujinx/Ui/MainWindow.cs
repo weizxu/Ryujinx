@@ -3,6 +3,7 @@ using ARMeilleure.Translation.PTC;
 using Gtk;
 using LibHac.Common;
 using LibHac.FsSystem;
+using LibHac.FsSystem.NcaUtils;
 using LibHac.Ns;
 using Ryujinx.Audio.Backends.Dummy;
 using Ryujinx.Audio.Backends.OpenAL;
@@ -85,6 +86,8 @@ namespace Ryujinx.Ui
         [GUI] Box             _statusBar;
         [GUI] MenuItem        _optionMenu;
         [GUI] MenuItem        _manageUserProfiles;
+        [GUI] MenuItem        _fileMenu;
+        [GUI] MenuItem        _appletMenu;
         [GUI] MenuItem        _actionMenu;
         [GUI] MenuItem        _stopEmulation;
         [GUI] MenuItem        _simulateWakeUpMessage;
@@ -161,6 +164,7 @@ namespace Ryujinx.Ui
             _applicationLibrary.ApplicationAdded        += Application_Added;
             _applicationLibrary.ApplicationCountUpdated += ApplicationCount_Updated;
 
+            _fileMenu.StateChanged   += FileMenu_StateChanged;
             _actionMenu.StateChanged += ActionMenu_StateChanged;
             _optionMenu.StateChanged += OptionMenu_StateChanged;
 
@@ -560,7 +564,15 @@ namespace Ryujinx.Ui
 
                 SystemVersion firmwareVersion = _contentManager.GetCurrentFirmwareVersion();
 
-                bool isDirectory = Directory.Exists(path);
+                bool isDirectory     = Directory.Exists(path);
+                bool isFirmwareTitle = false;
+
+                if (path.StartsWith("@SystemContent"))
+                {
+                    path = _virtualFileSystem.SwitchPathToSystemPath(path);
+
+                    isFirmwareTitle = true;
+                }
 
                 if (!SetupValidator.CanStartApplication(_contentManager, path, out UserError userError))
                 {
@@ -621,7 +633,12 @@ namespace Ryujinx.Ui
 
                 Logger.Notice.Print(LogClass.Application, $"Using Firmware Version: {firmwareVersion?.VersionString}");
 
-                if (Directory.Exists(path))
+                if (isFirmwareTitle)
+                {
+                    Logger.Info?.Print(LogClass.Application, "Loading as Firmware Title (NCA).");
+                    _emulationContext.LoadNca(path);
+                }
+                else if (Directory.Exists(path))
                 {
                     string[] romFsFiles = Directory.GetFiles(path, "*.istorage");
 
@@ -1083,6 +1100,18 @@ namespace Ryujinx.Ui
                     LoadApplication(fileChooser.Filename);
                 }
             }
+        }
+
+        private void FileMenu_StateChanged(object o, StateChangedArgs args)
+        { 
+            _appletMenu.Sensitive = _emulationContext == null && _contentManager.GetCurrentFirmwareVersion() != null;
+        }
+
+        private void Load_Mii_Edit_Applet(object sender, EventArgs args)
+        {
+            string contentPath = _contentManager.GetInstalledContentPath(0x0100000000001009, StorageId.NandSystem, NcaContentType.Program);
+
+            LoadApplication(contentPath);
         }
 
         private void Open_Ryu_Folder(object sender, EventArgs args)

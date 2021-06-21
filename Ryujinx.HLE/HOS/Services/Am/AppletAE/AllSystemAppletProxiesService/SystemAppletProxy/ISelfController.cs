@@ -226,14 +226,12 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
         }
 
         [CommandHipc(41)] // 4.0.0+
-        // IsSystemBufferSharingEnabled() -> u8
+        // IsSystemBufferSharingEnabled()
         public ResultCode IsSystemBufferSharingEnabled(ServiceCtx context)
         {
-            context.ResponseData.Write(false);
+            // NOTE: Service checks a private field and return an error if the SystemBufferSharing is disabled.
 
-            Logger.Stub?.PrintStub(LogClass.ServiceAm);
-
-            return ResultCode.NotAvailable;
+            return ResultCode.NotImplemented;
         }
 
         [CommandHipc(44)] // 10.0.0+

@@ -2,8 +2,8 @@ namespace Ryujinx.HLE.HOS.Services.Hid
 {
     enum ResultCode
     {
-        ModuleId       = 2,
-        ErrorCodeShift = 202,
+        ModuleId       = 202,
+        ErrorCodeShift = 9,
 
         Success = 0,
 

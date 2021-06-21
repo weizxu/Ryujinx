@@ -1,27 +1,40 @@
-﻿using Ryujinx.Common.Logging;
+﻿using Ryujinx.Common;
 using System.Collections.Generic;
 
 namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.LibraryAppletProxy
 {
     class ILibraryAppletSelfAccessor : IpcService
     {
-        private const AppletId _testAppletID = AppletId.MiiEdit;
-        private const ulong _testAppletTitle = 0x0100000000001009;
-        private Queue<byte[]> _testData;
+        private Dictionary<ulong, AppletStandalone> _appletStandalone = new Dictionary<ulong, AppletStandalone>();
 
-        public ILibraryAppletSelfAccessor()
+        public ILibraryAppletSelfAccessor(ServiceCtx context)
         {
-            _testData = new Queue<byte[]>();
+            if (context.Device.Application.TitleId == 0x0100000000001009)
+            {
+                // Add MiiEdit to standalone data list.
+                _appletStandalone.Add(context.Device.Application.TitleId, new AppletStandalone()
+                {
+                    AppletId = AppletId.MiiEdit,
+                    LibraryAppletMode = LibraryAppletMode.AllForeground
+                });
 
-            // mii edit
-            _testData.Enqueue(new byte[] { 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 156, 170, 222, 0, 248, 166, 222, 1, 184, 94, 218, 49, 0, 10, 32, 0, 0, 0, 0, 0, 156, 170, 222, 0, 248, 166, 222, 1, 72, 49, 32, 0, 18, 0, 0, 0, 0, 0, 0, 0, 208, 94, 218, 49, 188, 8, 32, 0, 0, 106, 248, 0, 156, 170, 222, 0, 0, 106, 248, 0, 0, 0, 0, 0, 248, 94, 218, 49, 88, 15, 32, 0, 0, 0, 0, 0, 0, 106, 248, 0, 204, 97, 0, 0, 0, 145, 0, 106, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 95, 218, 49, 20, 14, 32, 0, 0, 0, 0, 0, 18, 0, 0, 0, 0, 0, 0, 0, 168, 227, 118, 1, 24, 155, 247, 0, 48, 127, 255, 105, 0, 145, 0, 106, 0, 0, 0, 0, 192, 95, 218, 49, 228, 22, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+                byte[] miiEditInputData = new byte[0x100];
+                miiEditInputData[0] = 0x03; // Hardcoded unknown value.
+
+                _appletStandalone[context.Device.Application.TitleId].InputData.Enqueue(miiEditInputData);
+            }
         }
 
         [CommandHipc(0)]
         // PopInData() -> object<nn::am::service::IStorage>
         public ResultCode PopInData(ServiceCtx context)
         {
-            byte[] appletData = _testData.Dequeue();
+            byte[] appletData = _appletStandalone[context.Device.Application.TitleId].InputData.Dequeue();
+
+            if (appletData.Length == 0)
+            {
+                return ResultCode.NotAvailable;
+            }
 
             MakeObject(context, new IStorage(appletData));
 
@@ -32,10 +45,13 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Lib
         // GetLibraryAppletInfo() -> nn::am::service::LibraryAppletInfo
         public ResultCode GetLibraryAppletInfo(ServiceCtx context)
         {
-            context.ResponseData.Write((int)_testAppletID); // AppletId
-            context.ResponseData.Write(0x00); // LibraryAppletMode
+            LibraryAppletInfo libraryAppletInfo = new LibraryAppletInfo()
+            {
+                AppletId          = _appletStandalone[context.Device.Application.TitleId].AppletId,
+                LibraryAppletMode = _appletStandalone[context.Device.Application.TitleId].LibraryAppletMode
+            };
 
-            Logger.Stub?.PrintStub(LogClass.ServiceAm);
+            context.ResponseData.WriteStruct(libraryAppletInfo);
 
             return ResultCode.Success;
         }
@@ -44,11 +60,13 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Lib
         // GetCallerAppletIdentityInfo() -> nn::am::service::AppletIdentityInfo
         public ResultCode GetCallerAppletIdentityInfo(ServiceCtx context)
         {
-            context.ResponseData.Write(0x01); // AppletId
-            context.ResponseData.Write(0x00); // Padding
-            context.ResponseData.Write(0x0100000000001000); // QLaunch TitleId
+            AppletIdentifyInfo appletIdentifyInfo = new AppletIdentifyInfo()
+            {
+                AppletId = AppletId.QLaunch,
+                TitleId  = 0x0100000000001000
+            };
 
-            Logger.Stub?.PrintStub(LogClass.ServiceAm);
+            context.ResponseData.WriteStruct(appletIdentifyInfo);
 
             return ResultCode.Success;
         }

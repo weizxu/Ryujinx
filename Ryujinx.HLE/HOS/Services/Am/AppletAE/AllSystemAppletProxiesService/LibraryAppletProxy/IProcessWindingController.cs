@@ -1,4 +1,4 @@
-﻿using Ryujinx.Common.Logging;
+﻿using Ryujinx.Common;
 
 namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.LibraryAppletProxy
 {
@@ -10,9 +10,13 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Lib
         // GetLaunchReason() -> nn::am::service::AppletProcessLaunchReason
         public ResultCode GetLaunchReason(ServiceCtx context)
         {
-            context.ResponseData.Write(0);
+            // NOTE: Flag is set by using an internal field.
+            AppletProcessLaunchReason appletProcessLaunchReason = new AppletProcessLaunchReason()
+            {
+                Flag = 0
+            };
 
-            Logger.Stub?.PrintStub(LogClass.ServiceAm);
+            context.ResponseData.WriteStruct(appletProcessLaunchReason);
 
             return ResultCode.Success;
         }

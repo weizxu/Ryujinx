@@ -9,6 +9,8 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
     class IDisplayController : IpcService
     {
         private KTransferMemory _transferMem;
+        private bool            _lastApplicationCaptureBufferAcquired;
+        private bool            _callerAppletCaptureBufferAcquired;
 
         public IDisplayController(ServiceCtx context)
         {
@@ -31,7 +33,26 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
         // ReleaseLastApplicationCaptureBuffer()
         public ResultCode ReleaseLastApplicationCaptureBuffer(ServiceCtx context)
         {
-            Logger.Stub?.PrintStub(LogClass.ServiceAm);
+            if (!_lastApplicationCaptureBufferAcquired)
+            {
+                return ResultCode.BufferNotAcquired;
+            }
+
+            _lastApplicationCaptureBufferAcquired = false;
+
+            return ResultCode.Success;
+        }
+
+        [CommandHipc(15)]
+        // ReleaseCallerAppletCaptureBuffer()
+        public ResultCode ReleaseCallerAppletCaptureBuffer(ServiceCtx context)
+        {
+            if (!_callerAppletCaptureBufferAcquired)
+            {
+                return ResultCode.BufferNotAcquired;
+            }
+
+            _callerAppletCaptureBufferAcquired = false;
 
             return ResultCode.Success;
         }
@@ -40,6 +61,11 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
         // AcquireLastApplicationCaptureBufferEx() -> (b8, handle<copy>)
         public ResultCode AcquireLastApplicationCaptureBufferEx(ServiceCtx context)
         {
+            if (_lastApplicationCaptureBufferAcquired)
+            {
+                return ResultCode.BufferAlreadyAcquired;
+            }
+
             if (context.Process.HandleTable.GenerateHandle(_transferMem, out int handle) != KernelResult.Success)
             {
                 throw new InvalidOperationException("Out of handles!");
@@ -47,12 +73,34 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
 
             context.Response.HandleDesc = IpcHandleDesc.MakeCopy(handle);
 
-            context.ResponseData.Write(true);
+            _lastApplicationCaptureBufferAcquired = true;
 
-            Logger.Stub?.PrintStub(LogClass.ServiceAm);
+            context.ResponseData.Write(_lastApplicationCaptureBufferAcquired);
 
             return ResultCode.Success;
         }
 
+        [CommandHipc(18)]
+        // AcquireCallerAppletCaptureBufferEx() -> (b8, handle<copy>)
+        public ResultCode AcquireCallerAppletCaptureBufferEx(ServiceCtx context)
+        {
+            if (_callerAppletCaptureBufferAcquired)
+            {
+                return ResultCode.BufferAlreadyAcquired;
+            }
+
+            if (context.Process.HandleTable.GenerateHandle(_transferMem, out int handle) != KernelResult.Success)
+            {
+                throw new InvalidOperationException("Out of handles!");
+            }
+
+            context.Response.HandleDesc = IpcHandleDesc.MakeCopy(handle);
+
+            _callerAppletCaptureBufferAcquired = true;
+
+            context.ResponseData.Write(_callerAppletCaptureBufferAcquired);
+
+            return ResultCode.Success;
+        }
     }
 }

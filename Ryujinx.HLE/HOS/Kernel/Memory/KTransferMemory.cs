@@ -35,6 +35,10 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         public KTransferMemory(KernelContext context, SharedMemoryStorage storage) : base(context)
         {
             _storage = storage;
+            Permission = KMemoryPermission.ReadAndWrite;
+
+            _hasBeenInitialized = true;
+            _isMapped = false;
         }
 
         public KernelResult Initialize(ulong address, ulong size, KMemoryPermission permission)
@@ -76,11 +80,23 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                 return KernelResult.InvalidSize;
             }
 
-            KernelResult result = memoryManager.MapPages(address, pageList, MemoryState.SharedMemory, permission);
-
-            if (result == KernelResult.Success && !memoryManager.SupportsMemoryAliasing)
+            if (permission != Permission || _isMapped)
             {
-                _storage.Borrow(process, address);
+                return KernelResult.InvalidState;
+            }
+
+            MemoryState state = Permission == KMemoryPermission.None ? MemoryState.TransferMemoryIsolated : MemoryState.TransferMemory;
+
+            KernelResult result = memoryManager.MapPages(address, pageList, state, KMemoryPermission.ReadAndWrite);
+
+            if (result == KernelResult.Success)
+            {
+                _isMapped = true;
+
+                if (!memoryManager.SupportsMemoryAliasing)
+                {
+                    _storage.Borrow(process, address);
+                }
             }
 
             return result;
@@ -104,7 +120,16 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
             var ranges = _storage.GetRanges();
 
-            return memoryManager.UnmapPages(address, pagesCount, ranges, MemoryState.SharedMemory);
+            MemoryState state = Permission == KMemoryPermission.None ? MemoryState.TransferMemoryIsolated : MemoryState.TransferMemory;
+
+            KernelResult result = memoryManager.UnmapPages(address, pagesCount, ranges, state);
+
+            if (result == KernelResult.Success)
+            {
+                _isMapped = false;
+            }
+
+            return result;
         }
 
         protected override void Destroy()

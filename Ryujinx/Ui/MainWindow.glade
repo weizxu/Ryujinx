@@ -29,7 +29,7 @@
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <child>
-                      <object class="GtkMenuItem" id="LoadApplicationFile">
+                      <object class="GtkMenuItem" id="_loadApplicationFile">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="tooltip_text" translatable="yes">Open a file chooser to chose a switch compatible file to load</property>
@@ -39,7 +39,7 @@
                       </object>
                     </child>
                     <child>
-                      <object class="GtkMenuItem" id="LoadApplicationFolder">
+                      <object class="GtkMenuItem" id="_loadApplicationFolder">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="tooltip_text" translatable="yes">Open a file chooser to chose a switch compatible, unpacked application to load</property>

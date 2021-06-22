@@ -798,7 +798,7 @@ namespace Ryujinx.HLE.HOS.Services.Hid
 
             NpadJoyHoldType npadJoyHoldType = (NpadJoyHoldType)context.RequestData.ReadInt64();
 
-            if (npadJoyHoldType > NpadJoyHoldType.Vertical)
+            if (npadJoyHoldType > NpadJoyHoldType.Horizontal)
             {
                 throw new ArgumentOutOfRangeException();
             }

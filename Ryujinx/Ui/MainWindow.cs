@@ -87,6 +87,8 @@ namespace Ryujinx.Ui
         [GUI] MenuItem        _optionMenu;
         [GUI] MenuItem        _manageUserProfiles;
         [GUI] MenuItem        _fileMenu;
+        [GUI] MenuItem        _loadApplicationFile;
+        [GUI] MenuItem        _loadApplicationFolder;
         [GUI] MenuItem        _appletMenu;
         [GUI] MenuItem        _actionMenu;
         [GUI] MenuItem        _stopEmulation;
@@ -1104,7 +1106,9 @@ namespace Ryujinx.Ui
 
         private void FileMenu_StateChanged(object o, StateChangedArgs args)
         { 
-            _appletMenu.Sensitive = _emulationContext == null && _contentManager.GetCurrentFirmwareVersion() != null;
+            _appletMenu.Sensitive            = _emulationContext == null && _contentManager.GetCurrentFirmwareVersion() != null;
+            _loadApplicationFile.Sensitive   = _emulationContext == null;
+            _loadApplicationFolder.Sensitive = _emulationContext == null;
         }
 
         private void Load_Mii_Edit_Applet(object sender, EventArgs args)
@@ -1231,6 +1235,15 @@ namespace Ryujinx.Ui
 
                                     GtkDialog.CreateInfoDialog(dialogTitle, message);
                                     Logger.Info?.Print(LogClass.Application, message);
+
+                                    // Purge Applet Cache
+
+                                    DirectoryInfo miiEditorCacheFolder = new DirectoryInfo(System.IO.Path.Combine(AppDataManager.GamesDirPath, "0100000000001009", "cache"));
+
+                                    if (miiEditorCacheFolder.Exists)
+                                    {
+                                        miiEditorCacheFolder.Delete(true);
+                                    }
                                 });
                             }
                             catch (Exception ex)

@@ -18,6 +18,7 @@ namespace Ryujinx.HLE.HOS.Services.Fs
     [Service("fsp-srv")]
     class IFileSystemProxy : IpcService
     {
+        private long _pid;
         private LibHac.FsSrv.IFileSystemProxy _baseFileSystemProxy;
 
         public IFileSystemProxy(ServiceCtx context)
@@ -29,6 +30,7 @@ namespace Ryujinx.HLE.HOS.Services.Fs
         // Initialize(u64, pid)
         public ResultCode Initialize(ServiceCtx context)
         {
+            _pid = context.Request.HandleDesc.PId;
             return ResultCode.Success;
         }
 
@@ -377,11 +379,22 @@ namespace Ryujinx.HLE.HOS.Services.Fs
             return ResultCode.Success;
         }
 
+        private static bool TestAppletLoaded;
+
         [CommandHipc(200)]
         // OpenDataStorageByCurrentProcess() -> object<nn::fssrv::sf::IStorage> dataStorage
         public ResultCode OpenDataStorageByCurrentProcess(ServiceCtx context)
         {
-            MakeObject(context, new FileSystemProxy.IStorage(context.Device.FileSystem.RomFs.AsStorage()));
+            if (!TestAppletLoaded)
+            {
+                TestAppletLoaded = true;
+                string contentPath = context.Device.System.ContentManager.GetInstalledContentPath(0x0100000000001009, StorageId.NandSystem, NcaContentType.Program);
+                contentPath = context.Device.FileSystem.SwitchPathToSystemPath(contentPath);
+                System.Console.WriteLine("loading " + contentPath);
+                context.Device.LoadNca(contentPath);
+            }
+
+            MakeObject(context, new FileSystemProxy.IStorage(context.Device.FileSystem.GetRomFs(_pid).AsStorage()));
 
             return 0;
         }
@@ -396,7 +409,7 @@ namespace Ryujinx.HLE.HOS.Services.Fs
 
             // We do a mitm here to find if the request is for an AOC.
             // This is because AOC can be distributed over multiple containers in the emulator.
-            if (context.Device.System.ContentManager.GetAocDataStorage((ulong)titleId, out LibHac.Fs.IStorage aocStorage, context.Device.Configuration.FsIntegrityCheckLevel))
+            if (context.Device.System.ContentManager.GetAocDataStorage(titleId, out LibHac.Fs.IStorage aocStorage, context.Device.Configuration.FsIntegrityCheckLevel))
             {
                 Logger.Info?.Print(LogClass.Loader, $"Opened AddOnContent Data TitleID={titleId:X16}");
 
@@ -460,7 +473,7 @@ namespace Ryujinx.HLE.HOS.Services.Fs
         // OpenPatchDataStorageByCurrentProcess() -> object<nn::fssrv::sf::IStorage>
         public ResultCode OpenPatchDataStorageByCurrentProcess(ServiceCtx context)
         {
-            MakeObject(context, new FileSystemProxy.IStorage(context.Device.FileSystem.RomFs.AsStorage()));
+            MakeObject(context, new FileSystemProxy.IStorage(context.Device.FileSystem.GetRomFs(_pid).AsStorage()));
 
             return ResultCode.Success;
         }

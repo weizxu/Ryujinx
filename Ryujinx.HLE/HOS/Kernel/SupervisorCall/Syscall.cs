@@ -1400,6 +1400,7 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
 
         public void ExitProcess()
         {
+            throw new Exception("process exited");
             KernelStatic.GetCurrentProcess().TerminateCurrentProcess();
         }
 

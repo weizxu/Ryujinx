@@ -9,6 +9,7 @@ using Ryujinx.Common.Configuration;
 using Ryujinx.HLE.FileSystem.Content;
 using Ryujinx.HLE.HOS;
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 
 namespace Ryujinx.HLE.FileSystem
@@ -32,23 +33,38 @@ namespace Ryujinx.HLE.FileSystem
 
         public ModLoader ModLoader {get; private set;}
 
+        private readonly ConcurrentDictionary<long, Stream> _romFsByPid;
+
         private VirtualFileSystem()
         {
+            _romFsByPid = new ConcurrentDictionary<long, Stream>();
             Reload();
             ModLoader = new ModLoader(); // Should only be created once
         }
 
-        public Stream RomFs { get; private set; }
-
-        public void LoadRomFs(string fileName)
+        public void LoadRomFs(long pid, string fileName)
         {
-            RomFs = new FileStream(fileName, FileMode.Open, FileAccess.Read);
+            var romfsStream = new FileStream(fileName, FileMode.Open, FileAccess.Read);
+
+            _romFsByPid.AddOrUpdate(pid, romfsStream, (pid, oldStream) =>
+            {
+                oldStream.Close();
+                return romfsStream;
+            });
         }
 
-        public void SetRomFs(Stream romfsStream)
+        public void SetRomFs(long pid, Stream romfsStream)
         {
-            RomFs?.Close();
-            RomFs = romfsStream;
+            _romFsByPid.AddOrUpdate(pid, romfsStream, (pid, oldStream) =>
+            {
+                oldStream.Close();
+                return romfsStream;
+            });
+        }
+
+        public Stream GetRomFs(long pid)
+        {
+            return _romFsByPid[pid];
         }
 
         public string GetFullPath(string basePath, string fileName)
@@ -279,7 +295,12 @@ namespace Ryujinx.HLE.FileSystem
 
         public void Unload()
         {
-            RomFs?.Dispose();
+            foreach (var stream in _romFsByPid.Values)
+            {
+                stream.Close();
+            }
+
+            _romFsByPid.Clear();
         }
 
         public void Dispose()

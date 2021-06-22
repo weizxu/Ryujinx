@@ -125,8 +125,17 @@ namespace Ryujinx.HLE.HOS
             return true;
         }
 
-        public static bool LoadNsos(KernelContext context, out ProcessTamperInfo tamperInfo, Npdm metaData, byte[] arguments = null, params IExecutable[] executables)
+        public static bool LoadNsos(
+            KernelContext context,
+            out ProcessTamperInfo tamperInfo,
+            out long pid,
+            Npdm metaData,
+            byte[] arguments = null,
+            params IExecutable[] executables)
         {
+            tamperInfo = null;
+            pid = 0;
+
             ulong argsStart = 0;
             uint  argsSize  = 0;
             ulong codeStart = metaData.Is64Bit ? 0x8000000UL : 0x200000UL;
@@ -210,8 +219,6 @@ namespace Ryujinx.HLE.HOS
             {
                 Logger.Error?.Print(LogClass.Loader, $"Process initialization failed setting resource limit values.");
 
-                tamperInfo = null;
-
                 return false;
             }
 
@@ -222,8 +229,6 @@ namespace Ryujinx.HLE.HOS
             if (memoryRegion > MemoryRegion.NvServices)
             {
                 Logger.Error?.Print(LogClass.Loader, $"Process initialization failed due to invalid ACID flags.");
-
-                tamperInfo = null;
 
                 return false;
             }
@@ -241,8 +246,6 @@ namespace Ryujinx.HLE.HOS
             {
                 Logger.Error?.Print(LogClass.Loader, $"Process initialization returned error \"{result}\".");
 
-                tamperInfo = null;
-
                 return false;
             }
 
@@ -256,24 +259,11 @@ namespace Ryujinx.HLE.HOS
                 {
                     Logger.Error?.Print(LogClass.Loader, $"Process initialization returned error \"{result}\".");
 
-                    tamperInfo = null;
-
                     return false;
                 }
             }
 
             process.DefaultCpuCore = metaData.DefaultCpuId;
-
-            result = process.Start(metaData.MainThreadPriority, (ulong)metaData.MainThreadStackSize);
-
-            if (result != KernelResult.Success)
-            {
-                Logger.Error?.Print(LogClass.Loader, $"Process start returned error \"{result}\".");
-
-                tamperInfo = null;
-
-                return false;
-            }
 
             context.Processes.TryAdd(process.Pid, process);
 
@@ -281,6 +271,21 @@ namespace Ryujinx.HLE.HOS
             // tamper to and also keep the starting address of each executable inside a process because some
             // memory modifications are relative to this address.
             tamperInfo = new ProcessTamperInfo(process, buildIds, nsoBase, process.MemoryManager.HeapRegionStart);
+            pid = process.Pid;
+
+            return true;
+        }
+
+        public static bool StartProcess(KernelContext context, long pid, Npdm metaData)
+        {
+            KernelResult result = context.Processes[pid].Start(metaData.MainThreadPriority, (ulong)metaData.MainThreadStackSize);
+
+            if (result != KernelResult.Success)
+            {
+                Logger.Error?.Print(LogClass.Loader, $"Process start returned error \"{result}\".");
+
+                return false;
+            }
 
             return true;
         }

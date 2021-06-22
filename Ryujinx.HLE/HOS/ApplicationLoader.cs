@@ -70,11 +70,6 @@ namespace Ryujinx.HLE.HOS
 
         public void LoadCart(string exeFsDir, string romFsFile = null)
         {
-            if (romFsFile != null)
-            {
-                _device.Configuration.VirtualFileSystem.LoadRomFs(romFsFile);
-            }
-
             LocalFileSystem codeFs = new LocalFileSystem(exeFsDir);
 
             Npdm metaData = ReadNpdm(codeFs);
@@ -86,7 +81,14 @@ namespace Ryujinx.HLE.HOS
                 EnsureSaveData(new ApplicationId(TitleId));
             }
 
-            LoadExeFs(codeFs, metaData);
+            long pid = LoadExeFs(codeFs, metaData);
+
+            if (romFsFile != null)
+            {
+                _device.Configuration.VirtualFileSystem.LoadRomFs(pid, romFsFile);
+            }
+
+            ProgramLoader.StartProcess(_device.System.KernelContext, pid, metaData);
         }
 
         public static (Nca main, Nca patch, Nca control) GetGameData(VirtualFileSystem fileSystem, PartitionFileSystem pfs, int programIndex)
@@ -280,7 +282,8 @@ namespace Ryujinx.HLE.HOS
             }
 
             // This is not a normal NSP, it's actually a ExeFS as a NSP
-            LoadExeFs(nsp);
+            long pid = LoadExeFs(nsp);
+            ProgramLoader.StartProcess(_device.System.KernelContext, pid, ReadNpdm(nsp));
         }
 
         public void LoadNca(string ncaFile)
@@ -389,6 +392,13 @@ namespace Ryujinx.HLE.HOS
                 ReadControlData(_device, updateProgram0ControlNca, ref dummyControl, ref dummyTitleName, ref _displayVersion);
             }
 
+            if (TitleId != 0)
+            {
+                EnsureSaveData(new ApplicationId(TitleId));
+            }
+
+            long pid = LoadExeFs(codeFs, metaData);
+
             if (dataStorage == null)
             {
                 Logger.Warning?.Print(LogClass.Loader, "No RomFS found in NCA");
@@ -397,15 +407,10 @@ namespace Ryujinx.HLE.HOS
             {
                 IStorage newStorage = _device.Configuration.VirtualFileSystem.ModLoader.ApplyRomFsMods(TitleId, dataStorage);
 
-                _device.Configuration.VirtualFileSystem.SetRomFs(newStorage.AsStream(FileAccess.Read));
+                _device.Configuration.VirtualFileSystem.SetRomFs(pid, newStorage.AsStream(FileAccess.Read));
             }
 
-            if (TitleId != 0)
-            {
-                EnsureSaveData(new ApplicationId(TitleId));
-            }
-
-            LoadExeFs(codeFs, metaData);
+            ProgramLoader.StartProcess(_device.System.KernelContext, pid, metaData);
 
             Logger.Info?.Print(LogClass.Loader, $"Application Loaded: {TitleName} v{DisplayVersion} [{TitleIdText}] [{(TitleIs64Bit ? "64-bit" : "32-bit")}]");
         }
@@ -461,7 +466,7 @@ namespace Ryujinx.HLE.HOS
             }
         }
 
-        private void LoadExeFs(IFileSystem codeFs, Npdm metaData = null)
+        private long LoadExeFs(IFileSystem codeFs, Npdm metaData = null)
         {
             if (_device.Configuration.VirtualFileSystem.ModLoader.ReplaceExefsPartition(TitleId, ref codeFs))
             {
@@ -519,9 +524,16 @@ namespace Ryujinx.HLE.HOS
 
             Ptc.Initialize(TitleIdText, DisplayVersion, usePtc, _device.Configuration.MemoryManagerMode);
 
-            ProgramLoader.LoadNsos(_device.System.KernelContext, out ProcessTamperInfo tamperInfo, metaData, executables: programs);
+            ProgramLoader.LoadNsos(
+                _device.System.KernelContext,
+                out ProcessTamperInfo tamperInfo,
+                out long pid,
+                metaData,
+                executables: programs);
 
             _device.Configuration.VirtualFileSystem.ModLoader.LoadCheats(TitleId, tamperInfo, _device.TamperMachine);
+
+            return pid;
         }
 
         public void LoadProgram(string filePath)
@@ -530,6 +542,7 @@ namespace Ryujinx.HLE.HOS
             bool isNro    = Path.GetExtension(filePath).ToLower() == ".nro";
 
             IExecutable executable;
+            Stream romfsStream = null;
 
             if (isNro)
             {
@@ -562,7 +575,7 @@ namespace Ryujinx.HLE.HOS
 
                             if (romfsSize != 0)
                             {
-                                _device.Configuration.VirtualFileSystem.SetRomFs(new HomebrewRomFsStream(input, obj.FileSize + (long)romfsOffset));
+                                romfsStream = new HomebrewRomFsStream(input, obj.FileSize + (long)romfsOffset);
                             }
 
                             if (nacpSize != 0)
@@ -620,9 +633,21 @@ namespace Ryujinx.HLE.HOS
             Graphics.Gpu.GraphicsConfig.TitleId = null;
             _device.Gpu.HostInitalized.Set();
 
-            ProgramLoader.LoadNsos(_device.System.KernelContext, out ProcessTamperInfo tamperInfo, metaData, executables: executable);
+            ProgramLoader.LoadNsos(
+                _device.System.KernelContext,
+                out ProcessTamperInfo tamperInfo,
+                out long pid,
+                metaData,
+                executables: executable);
+
+            if (romfsStream != null)
+            {
+                _device.Configuration.VirtualFileSystem.SetRomFs(pid, romfsStream);
+            }
 
             _device.Configuration.VirtualFileSystem.ModLoader.LoadCheats(TitleId, tamperInfo, _device.TamperMachine);
+
+            ProgramLoader.StartProcess(_device.System.KernelContext, pid, metaData);
         }
 
         private Npdm GetDefaultNpdm()

@@ -61,7 +61,7 @@ namespace Ryujinx.HLE.HOS.Services
             _isDomain = false;
         }
 
-        public void CallHipcMethod(ServiceCtx context)
+        public void CallHipcMethod(ServiceCtx context, long clientPid)
         {
             IpcService service = this;
 
@@ -117,7 +117,14 @@ namespace Ryujinx.HLE.HOS.Services
 
                 if (serviceExists)
                 {
-                    Logger.Info?.Print(LogClass.KernelIpc, $"{service.GetType().Name}: {processRequest.Name}");
+                    if (clientPid > 92)
+                    {
+                        Logger.Info?.Print(LogClass.KernelIpc, $"{service.GetType().Name}: {processRequest.Name}");
+                    }
+                    else
+                    {
+                        // Logger.Debug?.Print(LogClass.KernelIpc, $"{service.GetType().Name}: {processRequest.Name}");
+                    }
 
                     result = (ResultCode)processRequest.Invoke(service, new object[] { context });
                 }

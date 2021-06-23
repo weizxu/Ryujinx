@@ -16,7 +16,7 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService
         // GetCommonStateGetter() -> object<nn::am::service::ICommonStateGetter>
         public ResultCode GetCommonStateGetter(ServiceCtx context)
         {
-            MakeObject(context, new ICommonStateGetter(context));
+            MakeObject(context, new ICommonStateGetter(context, _pid));
 
             return ResultCode.Success;
         }

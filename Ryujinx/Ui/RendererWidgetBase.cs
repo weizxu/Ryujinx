@@ -513,6 +513,11 @@ namespace Ryujinx.Ui
                 state |= KeyboardHotkeyState.ToggleVSync;
             }
 
+            if (_keyboardInterface.IsPressed(Key.F9))
+            {
+                Device.LoadAppletForTest();
+            }
+
             return state;
         }
     }

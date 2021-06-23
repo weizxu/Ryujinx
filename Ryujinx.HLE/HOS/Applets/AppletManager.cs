@@ -20,7 +20,8 @@ namespace Ryujinx.HLE.HOS.Applets
                 { AppletId.SoftwareKeyboard, typeof(SoftwareKeyboardApplet) },
                 { AppletId.LibAppletWeb,     typeof(BrowserApplet)          },
                 { AppletId.LibAppletShop,    typeof(BrowserApplet)          },
-                { AppletId.LibAppletOff,     typeof(BrowserApplet)          }
+                { AppletId.LibAppletOff,     typeof(BrowserApplet)          },
+                { AppletId.MiiEdit,          typeof(LLEApplet)              }
             };
         }
 

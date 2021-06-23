@@ -206,6 +206,8 @@ namespace Ryujinx.HLE.HOS.Kernel.Ipc
             return KernelResult.Success;
         }
 
+        public long ClientPid { get; private set; }
+
         public KernelResult Receive(ulong customCmdBuffAddr = 0, ulong customCmdBuffSize = 0)
         {
             KThread  serverThread  = KernelStatic.GetCurrentThread();
@@ -236,6 +238,8 @@ namespace Ryujinx.HLE.HOS.Kernel.Ipc
 
             KThread  clientThread  = request.ClientThread;
             KProcess clientProcess = clientThread.Owner;
+
+            ClientPid = clientProcess.Pid;
 
             KernelContext.CriticalSection.Leave();
 

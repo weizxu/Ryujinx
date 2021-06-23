@@ -97,6 +97,23 @@ namespace Ryujinx.HLE
             System.GlobalAccessLogMode = Configuration.FsGlobalAccessLogMode;
         }
 
+        private bool _testAppletLoaded;
+        public bool AppletTest => _testAppletLoaded;
+
+        public void LoadAppletForTest()
+        {
+            if (!_testAppletLoaded)
+            {
+                _testAppletLoaded = true;
+                string contentPath = System.ContentManager.GetInstalledContentPath(0x0100000000001009, StorageId.NandSystem, LibHac.FsSystem.NcaUtils.NcaContentType.Program);
+                contentPath = FileSystem.SwitchPathToSystemPath(contentPath);
+                Console.WriteLine("loading " + contentPath);
+                LoadNca(contentPath);
+            }
+
+            System.AppletState.SetFocus(true);
+        }
+
         public void LoadCart(string exeFsDir, string romFsFile = null)
         {
             Application.LoadCart(exeFsDir, romFsFile);

@@ -7,10 +7,12 @@ namespace Ryujinx.HLE.HOS.Kernel.Threading
         private readonly KEvent _parent;
 
         private bool _signaled;
+        public string Creator { get;  }
 
         public KReadableEvent(KernelContext context, KEvent parent) : base(context)
         {
             _parent = parent;
+            Creator = System.Environment.StackTrace;
         }
 
         public override void Signal()

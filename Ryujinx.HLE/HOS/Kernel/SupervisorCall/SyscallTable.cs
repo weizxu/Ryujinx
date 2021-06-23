@@ -441,6 +441,10 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
 
         private static void PrintArguments(object[] argValues, string formatOrSvcName)
         {
+            if (KernelStatic.GetCurrentProcess().Pid <= 92)
+            {
+                return;
+            }
             if (argValues != null)
             {
                 Logger.Debug?.Print(LogClass.KernelSvc, string.Format(formatOrSvcName, argValues));
@@ -453,6 +457,10 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
 
         private static void PrintResult(KernelResult result, string svcName)
         {
+            if (KernelStatic.GetCurrentProcess().Pid <= 92)
+            {
+                return;
+            }
             if (result != KernelResult.Success   &&
                 result != KernelResult.TimedOut  &&
                 result != KernelResult.Cancelled &&

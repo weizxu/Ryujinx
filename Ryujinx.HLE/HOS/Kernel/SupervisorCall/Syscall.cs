@@ -227,6 +227,14 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
         {
             KProcess currentProcess = KernelStatic.GetCurrentProcess();
 
+            /* if (currentProcess.Pid == 92 && _context.Device.AppletTest)
+            {
+                while (true)
+                {
+                    Thread.Sleep(1000000);
+                }
+            } */
+
             KClientSession session = currentProcess.HandleTable.GetObject<KClientSession>(handle);
 
             if (session == null)
@@ -506,12 +514,13 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                 return KernelResult.UserCopyFailed;
             }
 
-            return ReplyAndReceive(handles, replyTargetHandle, timeout, out handleIndex);
+            return ReplyAndReceive(handles, replyTargetHandle, timeout, out handleIndex, out _);
         }
 
-        public KernelResult ReplyAndReceive(ReadOnlySpan<int> handles, int replyTargetHandle, long timeout, out int handleIndex)
+        public KernelResult ReplyAndReceive(ReadOnlySpan<int> handles, int replyTargetHandle, long timeout, out int handleIndex, out long clientPid)
         {
             handleIndex = 0;
+            clientPid = 0;
 
             KProcess currentProcess = KernelStatic.GetCurrentProcess();
 
@@ -558,6 +567,7 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
 
                     if ((result = session.Receive()) != KernelResult.NotFound)
                     {
+                        clientPid = session.ClientPid;
                         break;
                     }
                 }

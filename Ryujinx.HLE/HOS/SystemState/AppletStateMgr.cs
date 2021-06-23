@@ -4,20 +4,31 @@ using System.Collections.Concurrent;
 
 namespace Ryujinx.HLE.HOS.SystemState
 {
-    class AppletStateMgr
+    class AppletMessageQueue
     {
         public ConcurrentQueue<AppletMessage> Messages { get; }
+        public KEvent MessageEvent { get; }
+
+        public AppletMessageQueue(Horizon system)
+        {
+            Messages = new ConcurrentQueue<AppletMessage>();
+            MessageEvent = new KEvent(system.KernelContext);
+        }
+    }
+
+    class AppletStateMgr
+    {
+        private readonly ConcurrentDictionary<long, AppletMessageQueue> _messageQueues;
 
         public FocusState FocusState { get; private set; }
 
-        public KEvent MessageEvent { get; }
-
         public IdDictionary AppletResourceUserIds { get; }
 
-        public AppletStateMgr(Horizon system)
+        public byte[] AppletData { get; set; }
+
+        public AppletStateMgr()
         {
-            Messages     = new ConcurrentQueue<AppletMessage>();
-            MessageEvent = new KEvent(system.KernelContext);
+            _messageQueues = new ConcurrentDictionary<long, AppletMessageQueue>();
 
             AppletResourceUserIds = new IdDictionary();
         }
@@ -26,14 +37,41 @@ namespace Ryujinx.HLE.HOS.SystemState
         {
             FocusState = isFocused ? FocusState.InFocus : FocusState.OutOfFocus;
 
-            Messages.Enqueue(AppletMessage.FocusStateChanged);
+
+            SendMessageToAll(AppletMessage.FocusStateChanged);
 
             if (isFocused)
             {
-                Messages.Enqueue(AppletMessage.ChangeIntoForeground);
+                SendMessageToAll(AppletMessage.ChangeIntoForeground);
             }
 
-            MessageEvent.ReadableEvent.Signal();
+            SignalAll();
+        }
+
+        public void SendMessageToAll(AppletMessage message)
+        {
+            foreach (var mq in _messageQueues.Values)
+            {
+                mq.Messages.Enqueue(message);
+            }
+        }
+
+        public void SignalAll()
+        {
+            foreach (var mq in _messageQueues.Values)
+            {
+                mq.MessageEvent.ReadableEvent.Signal();
+            }
+        }
+
+        public void CreateQueue(Horizon system, long pid)
+        {
+            _messageQueues.TryAdd(pid, new AppletMessageQueue(system));
+        }
+
+        public AppletMessageQueue GetQueue(long pid)
+        {
+            return _messageQueues[pid];
         }
     }
 }

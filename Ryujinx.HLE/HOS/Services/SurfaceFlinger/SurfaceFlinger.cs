@@ -284,13 +284,17 @@ namespace Ryujinx.HLE.HOS.Services.SurfaceFlinger
         {
             lock (Lock)
             {
+
                 // TODO: support multilayers (& multidisplay ?)
                 if (RenderLayerId == 0)
                 {
+                    // System.Console.WriteLine("compose " + RenderLayerId);
                     return;
                 }
 
                 Layer layer = GetLayerByIdLocked(RenderLayerId);
+
+                // System.Console.WriteLine("compose " + RenderLayerId + " " + layer.Owner);
 
                 Status acquireStatus = layer.Consumer.AcquireBuffer(out BufferItem item, 0);
 

@@ -67,6 +67,7 @@ namespace Ryujinx.HLE.HOS.Services
 
         public void AddSessionObj(KServerSession serverSession, IpcService obj)
         {
+            InitDone.WaitOne();
             _selfProcess.HandleTable.GenerateHandle(serverSession, out int serverSessionHandle);
             AddSessionObj(serverSessionHandle, obj);
         }
@@ -86,13 +87,9 @@ namespace Ryujinx.HLE.HOS.Services
                 _context.Syscall.ManageNamedPort("sm:", 50, out int serverPortHandle);
 
                 AddPort(serverPortHandle, SmObjectFactory);
+            }
 
-                InitDone.Set();
-            }
-            else
-            {
-                InitDone.Dispose();
-            }
+            InitDone.Set();
 
             KThread thread = KernelStatic.GetCurrentThread();
             ulong messagePtr = thread.TlsAddress;
@@ -114,7 +111,7 @@ namespace Ryujinx.HLE.HOS.Services
                 sessionHandles.CopyTo(handles, portHandles.Length);
 
                 // We still need a timeout here to allow the service to pick up and listen new sessions...
-                var rc = _context.Syscall.ReplyAndReceive(handles, replyTargetHandle, 1000000L, out int signaledIndex);
+                var rc = _context.Syscall.ReplyAndReceive(handles, replyTargetHandle, 1000000L, out int signaledIndex, out long clientPid);
 
                 thread.HandlePostSyscall();
 
@@ -130,7 +127,7 @@ namespace Ryujinx.HLE.HOS.Services
                     // We got a IPC request, process it, pass to the appropriate service if needed.
                     int signaledHandle = handles[signaledIndex];
 
-                    if (Process(signaledHandle, heapAddr))
+                    if (Process(signaledHandle, heapAddr, clientPid))
                     {
                         replyTargetHandle = signaledHandle;
                     }
@@ -155,7 +152,7 @@ namespace Ryujinx.HLE.HOS.Services
             }
         }
 
-        private bool Process(int serverSessionHandle, ulong recvListAddr)
+        private bool Process(int serverSessionHandle, ulong recvListAddr, long clientPid)
         {
             KProcess process = KernelStatic.GetCurrentProcess();
             KThread thread = KernelStatic.GetCurrentThread();
@@ -219,7 +216,7 @@ namespace Ryujinx.HLE.HOS.Services
                             reqReader,
                             resWriter);
 
-                        _sessions[serverSessionHandle].CallHipcMethod(context);
+                        _sessions[serverSessionHandle].CallHipcMethod(context, clientPid);
 
                         response.RawData = resMs.ToArray();
                     }

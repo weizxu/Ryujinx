@@ -169,7 +169,7 @@ namespace Ryujinx.HLE.HOS
 
             TimeServiceManager.Instance.Initialize(device, this, timeSharedMemory, timeStorage, TimeSize);
 
-            AppletState = new AppletStateMgr(this);
+            AppletState = new AppletStateMgr();
 
             AppletState.SetFocus(true);
 
@@ -331,9 +331,9 @@ namespace Ryujinx.HLE.HOS
                 State.DockedMode = newState;
                 PerformanceState.PerformanceMode = State.DockedMode ? PerformanceMode.Boost : PerformanceMode.Default;
 
-                AppletState.Messages.Enqueue(AppletMessage.OperationModeChanged);
-                AppletState.Messages.Enqueue(AppletMessage.PerformanceModeChanged);
-                AppletState.MessageEvent.ReadableEvent.Signal();
+                AppletState.SendMessageToAll(AppletMessage.OperationModeChanged);
+                AppletState.SendMessageToAll(AppletMessage.PerformanceModeChanged);
+                AppletState.SignalAll();
 
                 SignalDisplayResolutionChange();
 
@@ -348,8 +348,8 @@ namespace Ryujinx.HLE.HOS
 
         public void SimulateWakeUpMessage()
         {
-            AppletState.Messages.Enqueue(AppletMessage.Resume);
-            AppletState.MessageEvent.ReadableEvent.Signal();
+            AppletState.SendMessageToAll(AppletMessage.Resume);
+            AppletState.SignalAll();
         }
 
         public void ScanAmiibo(int nfpDeviceId, string amiiboId, bool useRandomUuid)

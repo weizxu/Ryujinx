@@ -12,6 +12,7 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
         private Apm.SystemManagerServer _apmSystemManagerServer;
         private Lbl.LblControllerServer _lblControllerServer;
 
+        private readonly long _pid;
         private bool _vrModeEnabled;
 #pragma warning disable CS0414
         private bool _lcdBacklighOffEnabled;
@@ -20,8 +21,9 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
         private int  _messageEventHandle;
         private int  _displayResolutionChangedEventHandle;
 
-        public ICommonStateGetter(ServiceCtx context)
+        public ICommonStateGetter(ServiceCtx context, long pid)
         {
+            _pid = pid;
             _apmManagerServer       = new Apm.ManagerServer(context);
             _apmSystemManagerServer = new Apm.SystemManagerServer(context);
             _lblControllerServer    = new Lbl.LblControllerServer(context);
@@ -31,7 +33,9 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
         // GetEventHandle() -> handle<copy>
         public ResultCode GetEventHandle(ServiceCtx context)
         {
-            KEvent messageEvent = context.Device.System.AppletState.MessageEvent;
+            var mq = context.Device.System.AppletState.GetQueue(_pid);
+
+            KEvent messageEvent = mq.MessageEvent;
 
             if (_messageEventHandle == 0)
             {
@@ -50,17 +54,19 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
         // ReceiveMessage() -> nn::am::AppletMessage
         public ResultCode ReceiveMessage(ServiceCtx context)
         {
-            if (!context.Device.System.AppletState.Messages.TryDequeue(out AppletMessage message))
+            var mq = context.Device.System.AppletState.GetQueue(_pid);
+
+            if (!mq.Messages.TryDequeue(out AppletMessage message))
             {
                 return ResultCode.NoMessages;
             }
 
-            KEvent messageEvent = context.Device.System.AppletState.MessageEvent;
+            KEvent messageEvent = mq.MessageEvent;
 
             // NOTE: Service checks if current states are different than the stored ones.
             //       Since we don't support any states for now, it's fine to check if there is still messages available.
 
-            if (context.Device.System.AppletState.Messages.IsEmpty)
+            if (mq.Messages.IsEmpty)
             {
                 messageEvent.ReadableEvent.Clear();
             }

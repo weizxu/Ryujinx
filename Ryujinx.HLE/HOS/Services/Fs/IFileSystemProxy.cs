@@ -379,21 +379,10 @@ namespace Ryujinx.HLE.HOS.Services.Fs
             return ResultCode.Success;
         }
 
-        private static bool TestAppletLoaded;
-
         [CommandHipc(200)]
         // OpenDataStorageByCurrentProcess() -> object<nn::fssrv::sf::IStorage> dataStorage
         public ResultCode OpenDataStorageByCurrentProcess(ServiceCtx context)
         {
-            if (!TestAppletLoaded)
-            {
-                TestAppletLoaded = true;
-                string contentPath = context.Device.System.ContentManager.GetInstalledContentPath(0x0100000000001009, StorageId.NandSystem, NcaContentType.Program);
-                contentPath = context.Device.FileSystem.SwitchPathToSystemPath(contentPath);
-                System.Console.WriteLine("loading " + contentPath);
-                context.Device.LoadNca(contentPath);
-            }
-
             MakeObject(context, new FileSystemProxy.IStorage(context.Device.FileSystem.GetRomFs(_pid).AsStorage()));
 
             return 0;

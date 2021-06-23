@@ -199,7 +199,9 @@ namespace Ryujinx.HLE.HOS.Kernel.Threading
 
             ThreadUid = KernelContext.NewThreadUid();
 
-            HostThread.Name = customThreadStart != null ? $"HLE.OsThread.{ThreadUid}" : $"HLE.GuestThread.{ThreadUid}";
+            HostThread.Name = customThreadStart != null
+                ? $"HLE.OsThread.{ThreadUid}"
+                : (owner != null ? $"{owner.Name}.{ThreadUid}" : $"HLE.GuestThread.{ThreadUid}");
 
             _hasBeenInitialized = true;
 

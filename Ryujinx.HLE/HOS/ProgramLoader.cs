@@ -267,6 +267,9 @@ namespace Ryujinx.HLE.HOS
 
             context.Processes.TryAdd(process.Pid, process);
 
+            context.Device.System.AppletState.CreateQueue(context.Device.System, process.Pid);
+            context.Device.System.AppletState.SetFocus(true);
+
             // Keep the build ids because the tamper machine uses them to know which process to associate a
             // tamper to and also keep the starting address of each executable inside a process because some
             // memory modifications are relative to this address.

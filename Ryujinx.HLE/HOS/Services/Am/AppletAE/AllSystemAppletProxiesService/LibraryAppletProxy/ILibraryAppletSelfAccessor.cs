@@ -21,7 +21,7 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Lib
                 byte[] miiEditInputData = new byte[0x100];
                 miiEditInputData[0] = 0x03; // Hardcoded unknown value.
 
-                _appletStandalone[context.Device.Application.TitleId].InputData.Enqueue(miiEditInputData);
+                _appletStandalone[context.Device.Application.TitleId].InputData.Enqueue(context.Device.System.AppletState.AppletData);
             }
         }
 

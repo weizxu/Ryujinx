@@ -9,7 +9,17 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Lib
 
         public ILibraryAppletSelfAccessor(ServiceCtx context)
         {
-            if (context.Device.Application.TitleId == 0x0100000000001009)
+            if (context.Device.Application.TitleId == 0x0100000000001008)
+            {
+                // Add SwKbd to standalone data list.
+                _appletStandalone.Add(context.Device.Application.TitleId, new AppletStandalone()
+                {
+                    AppletId = AppletId.SoftwareKeyboard,
+                    LibraryAppletMode = LibraryAppletMode.AllForeground
+                });
+            }
+
+            else if (context.Device.Application.TitleId == 0x0100000000001009)
             {
                 // Add MiiEdit to standalone data list.
                 _appletStandalone.Add(context.Device.Application.TitleId, new AppletStandalone()
@@ -17,11 +27,11 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Lib
                     AppletId = AppletId.MiiEdit,
                     LibraryAppletMode = LibraryAppletMode.AllForeground
                 });
+            }
 
-                byte[] miiEditInputData = new byte[0x100];
-                miiEditInputData[0] = 0x03; // Hardcoded unknown value.
-
-                _appletStandalone[context.Device.Application.TitleId].InputData.Enqueue(context.Device.System.AppletState.AppletData);
+            while (context.Device.System.AppletState.AppletData.TryDequeue(out var data))
+            {
+                _appletStandalone[context.Device.Application.TitleId].InputData.Enqueue(data);
             }
         }
 

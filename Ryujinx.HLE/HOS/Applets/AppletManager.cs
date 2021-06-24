@@ -14,14 +14,14 @@ namespace Ryujinx.HLE.HOS.Applets
         {
             _appletMapping = new Dictionary<AppletId, Type>
             {
-                { AppletId.Error,            typeof(ErrorApplet)            },
-                { AppletId.PlayerSelect,     typeof(PlayerSelectApplet)     },
-                { AppletId.Controller,       typeof(ControllerApplet)       },
-                { AppletId.SoftwareKeyboard, typeof(SoftwareKeyboardApplet) },
-                { AppletId.LibAppletWeb,     typeof(BrowserApplet)          },
-                { AppletId.LibAppletShop,    typeof(BrowserApplet)          },
-                { AppletId.LibAppletOff,     typeof(BrowserApplet)          },
-                { AppletId.MiiEdit,          typeof(LLEApplet)              }
+                { AppletId.Error,            typeof(ErrorApplet)        },
+                { AppletId.PlayerSelect,     typeof(PlayerSelectApplet) },
+                { AppletId.Controller,       typeof(ControllerApplet)   },
+                { AppletId.SoftwareKeyboard, typeof(LLEAppletSwKbd)     },
+                { AppletId.LibAppletWeb,     typeof(BrowserApplet)      },
+                { AppletId.LibAppletShop,    typeof(BrowserApplet)      },
+                { AppletId.LibAppletOff,     typeof(BrowserApplet)      },
+                { AppletId.MiiEdit,          typeof(LLEAppletMiiEdit)   }
             };
         }
 

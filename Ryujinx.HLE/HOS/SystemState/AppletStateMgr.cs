@@ -24,7 +24,7 @@ namespace Ryujinx.HLE.HOS.SystemState
 
         public IdDictionary AppletResourceUserIds { get; }
 
-        public byte[] AppletData { get; set; }
+        public ConcurrentQueue<byte[]> AppletData { get; } = new();
 
         public AppletStateMgr()
         {

@@ -16,7 +16,8 @@ namespace Ryujinx.Graphics.GAL
 
         IShader CompileShader(ShaderStage stage, string code);
 
-        BufferHandle CreateBuffer(int size);
+        void CommitBufferRange(BufferHandle buffer, ulong offset, ulong size, bool commit);
+        BufferHandle CreateBuffer(ulong size, BufferCreateFlags flags);
 
         IProgram CreateProgram(IShader[] shaders, TransformFeedbackDescriptor[] transformFeedbackDescriptors);
 
@@ -26,14 +27,13 @@ namespace Ryujinx.Graphics.GAL
         void CreateSync(ulong id);
 
         void DeleteBuffer(BufferHandle buffer);
-
-        byte[] GetBufferData(BufferHandle buffer, int offset, int size);
+        byte[] GetBufferData(BufferHandle buffer, ulong offset, int size);
 
         Capabilities GetCapabilities();
 
         IProgram LoadProgramBinary(byte[] programBinary);
 
-        void SetBufferData(BufferHandle buffer, int offset, ReadOnlySpan<byte> data);
+        void SetBufferData(BufferHandle buffer, ulong offset, ReadOnlySpan<byte> data);
 
         void UpdateCounters();
 

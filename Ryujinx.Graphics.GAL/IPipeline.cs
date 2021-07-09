@@ -9,17 +9,13 @@ namespace Ryujinx.Graphics.GAL
 
         void BeginTransformFeedback(PrimitiveTopology topology);
 
-        void ClearBuffer(BufferHandle destination, int offset, int size, uint value);
+        void ClearBuffer(BufferHandle destination, ulong offset, ulong size, uint value);
 
         void ClearRenderTargetColor(int index, uint componentMask, ColorF color);
 
-        void ClearRenderTargetDepthStencil(
-            float depthValue,
-            bool  depthMask,
-            int   stencilValue,
-            int   stencilMask);
+        void ClearRenderTargetDepthStencil(float depthValue, bool depthMask, int stencilValue, int stencilMask);
 
-        void CopyBuffer(BufferHandle source, BufferHandle destination, int srcOffset, int dstOffset, int size);
+        void CopyBuffer(BufferHandle source, BufferHandle destination, ulong srcOffset, ulong dstOffset, ulong size);
 
         void DispatchCompute(int groupsX, int groupsY, int groupsZ);
 

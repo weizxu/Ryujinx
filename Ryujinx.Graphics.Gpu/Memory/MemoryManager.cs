@@ -430,6 +430,43 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
             return baseAddress + (va & PageMask);
         }
+        
+        /// <summary>
+        /// Returns the entire contiguous range of memory mapped, given a initial range.
+        /// </summary>
+        /// <remarks>
+        /// If the specified range is not mapped, this will simply return <see cref="PteUnmapped"/> with a size of zero.
+        /// </remarks>
+        /// <param name="va">Initial GPU virtual address</param>
+        /// <param name="size">Initial size of the range in bytes</param>
+        /// <returns>The initial range expanded to cover the entire contiguous mapped region</returns>
+        public (ulong, ulong) GetMappedRange(ulong va, ulong size)
+        {
+            ulong asSize = 1UL << AddressSpaceBits;
+            ulong tempAddress;
+            ulong startAddress = GetPte(va);
+            ulong endAddress = GetPte(va + size - PageSize);
+
+            if (startAddress == PteUnmapped)
+            {
+                return (0, 0);
+            }
+
+            while (va + size < asSize && (tempAddress = GetPte(va + size)) == endAddress + PageSize)
+            {
+                endAddress = tempAddress;
+                size += PageSize;
+            }
+
+            while (va > 0 && (tempAddress = GetPte(va - PageSize)) == startAddress - PageSize)
+            {
+                startAddress = tempAddress;
+                va -= PageSize;
+                size += PageSize;
+            }
+
+            return (startAddress, size);
+        }
 
         /// <summary>
         /// Gets the Page Table entry for a given GPU virtual address.

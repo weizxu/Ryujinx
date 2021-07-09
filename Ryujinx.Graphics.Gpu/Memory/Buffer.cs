@@ -3,6 +3,7 @@ using Ryujinx.Graphics.GAL;
 using Ryujinx.Memory.Range;
 using Ryujinx.Memory.Tracking;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -21,7 +22,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <summary>
         /// Host buffer handle.
         /// </summary>
-        public BufferHandle Handle { get; }
+        private readonly BufferHandle _handle;
 
         /// <summary>
         /// Start address of the buffer in guest memory.
@@ -60,6 +61,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
         private readonly Action<ulong, ulong> _loadDelegate;
         private readonly Action<ulong, ulong> _modifiedDelegate;
 
+        private readonly BitArray _pageCommitment;
+
         private int _sequenceNumber;
 
         private bool _useGranular;
@@ -72,15 +75,24 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="physicalMemory">Physical memory where the buffer is mapped</param>
         /// <param name="address">Start address of the buffer</param>
         /// <param name="size">Size of the buffer in bytes</param>
+        /// <param name="sparse">Indicates if the buffer should be sparse, with pages committed on demand</param>
         /// <param name="baseBuffers">Buffers which this buffer contains, and will inherit tracking handles from</param>
-        public Buffer(GpuContext context, PhysicalMemory physicalMemory, ulong address, ulong size, IEnumerable<Buffer> baseBuffers = null)
+        public Buffer(GpuContext context, PhysicalMemory physicalMemory, ulong address, ulong size, bool sparse, IEnumerable<Buffer> baseBuffers = null)
         {
             _context        = context;
             _physicalMemory = physicalMemory;
             Address         = address;
             Size            = size;
 
-            Handle = context.Renderer.CreateBuffer((int)size);
+            BufferCreateFlags flags = BufferCreateFlags.None;
+
+            if (sparse)
+            {
+                flags = BufferCreateFlags.Reserve;
+                _pageCommitment = new BitArray((int)(size / MemoryManager.PageSize));
+            }
+
+            _handle = context.Renderer.CreateBuffer(size, flags);
 
             _useGranular = size > GranularBufferThreshold;
 
@@ -141,8 +153,9 @@ namespace Ryujinx.Graphics.Gpu.Memory
         public BufferRange GetRange(ulong address)
         {
             ulong offset = address - Address;
+            EnsurePageCommitment(address, Size - offset);
 
-            return new BufferRange(Handle, (int)offset, (int)(Size - offset));
+            return new BufferRange(_handle, offset, Size - offset);
         }
 
         /// <summary>
@@ -156,9 +169,10 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <returns>The buffer sub-range</returns>
         public BufferRange GetRange(ulong address, ulong size)
         {
-            int offset = (int)(address - Address);
+            EnsurePageCommitment(address, size);
+            ulong offset = address - Address;
 
-            return new BufferRange(Handle, offset, (int)size);
+            return new BufferRange(_handle, offset, size);
         }
 
         /// <summary>
@@ -194,6 +208,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="size">Size in bytes of the range to synchronize</param>
         public void SynchronizeMemory(ulong address, ulong size)
         {
+            // System.Console.WriteLine($"sync mem {address:X} {size:X} {Address:X} {Size:X}");
             if (_useGranular)
             {
                 _memoryTrackingGranular.QueryModified(address, size, _modifiedDelegate, _context.SequenceNumber);
@@ -202,6 +217,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
             {
                 if (_context.SequenceNumber != _sequenceNumber && _memoryTracking.DirtyOrVolatile())
                 {
+                    EnsurePageCommitment(Address, Size);
+
                     _memoryTracking.Reprotect();
 
                     if (_modifiedRanges != null)
@@ -210,7 +227,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
                     }
                     else
                     {
-                        _context.Renderer.SetBufferData(Handle, 0, _physicalMemory.GetSpan(Address, (int)Size));
+                        _context.Renderer.SetBufferData(_handle, 0, _physicalMemory.GetSpan(Address, (int)Size));
                     }
 
                     _sequenceNumber = _context.SequenceNumber;
@@ -284,6 +301,53 @@ namespace Ryujinx.Graphics.Gpu.Memory
         }
 
         /// <summary>
+        /// Inherits data from the buffer specified as <paramref name="from"/>.
+        /// </summary>
+        /// <param name="from">Buffer to inherit the data from</param>
+        /// <param name="dstOffset">Offset on this buffer where the data from the old buffer should be located</param>
+        public void InheritData(Buffer from, ulong dstOffset)
+        {
+            if (_pageCommitment != null && from._pageCommitment != null)
+            {
+                int thisIndex = (int)(dstOffset / MemoryManager.PageSize);
+
+                ulong rgOffset = 0;
+                ulong rgSize = 0;
+
+                for (int i = 0; i < from._pageCommitment.Length; i++)
+                {
+                    if (from._pageCommitment[i])
+                    {
+                        _pageCommitment[thisIndex + i] = true;
+
+                        if (rgSize == 0)
+                        {
+                            rgOffset = (ulong)i * MemoryManager.PageSize;
+                        }
+
+                        rgSize += MemoryManager.PageSize;
+                    }
+                    else if (rgSize != 0)
+                    {
+                        _context.Renderer.CommitBufferRange(_handle, dstOffset + rgOffset, rgSize, true);
+                        _context.Renderer.Pipeline.CopyBuffer(from._handle, _handle, rgOffset, dstOffset + rgOffset, rgSize);
+                        rgSize = 0;
+                    }
+                }
+
+                if (rgSize != 0)
+                {
+                    _context.Renderer.CommitBufferRange(_handle, dstOffset + rgOffset, rgSize, true);
+                    _context.Renderer.Pipeline.CopyBuffer(from._handle, _handle, rgOffset, dstOffset + rgOffset, rgSize);
+                }
+            }
+            else
+            {
+                from.CopyTo(this, dstOffset);
+            }
+        }
+
+        /// <summary>
         /// Inherit modified ranges from another buffer.
         /// </summary>
         /// <param name="from">The buffer to inherit from</param>
@@ -347,6 +411,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 mSize = maxSize;
             }
 
+            EnsurePageCommitment(mAddress, mSize);
+
             if (_modifiedRanges != null)
             {
                 _modifiedRanges.ExcludeModifiedRegions(mAddress, mSize, _loadDelegate);
@@ -364,9 +430,9 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="mSize">Size of the modified region</param>
         private void LoadRegion(ulong mAddress, ulong mSize)
         {
-            int offset = (int)(mAddress - Address);
+            ulong offset = mAddress - Address;
 
-            _context.Renderer.SetBufferData(Handle, offset, _physicalMemory.GetSpan(mAddress, (int)mSize));
+            _context.Renderer.SetBufferData(_handle, offset, _physicalMemory.GetSpan(mAddress, (int)mSize));
         }
 
         /// <summary>
@@ -393,13 +459,85 @@ namespace Ryujinx.Graphics.Gpu.Memory
         }
 
         /// <summary>
-        /// Performs copy of all the buffer data from one buffer to another.
+        /// Copies of all the buffer data from one buffer to another.
         /// </summary>
         /// <param name="destination">The destination buffer to copy the data into</param>
-        /// <param name="dstOffset">The offset of the destination buffer to copy into</param>
-        public void CopyTo(Buffer destination, int dstOffset)
+        /// <param name="dstOffset">The offset on the destination buffer to copy into</param>
+        public void CopyTo(Buffer destination, ulong dstOffset)
         {
-            _context.Renderer.Pipeline.CopyBuffer(Handle, destination.Handle, 0, dstOffset, (int)Size);
+            CopyTo(destination, 0, dstOffset, Size);
+        }
+
+        /// <summary>
+        /// Copies the specified buffer range from this buffer to the destination.
+        /// </summary>
+        /// <param name="destination">The destination buffer to copy the data into</param>
+        /// <param name="srcOffset">The offset on the source buffer to copy from</param>
+        /// <param name="dstOffset">The offset on the destination buffer to copy into</param>
+        /// <param name="size">Size of the copy in bytes</param>
+        public void CopyTo(Buffer destination, ulong srcOffset, ulong dstOffset, ulong size)
+        {
+            EnsurePageCommitment(Address + srcOffset, size);
+            destination.EnsurePageCommitment(destination.Address + dstOffset, size);
+            _context.Renderer.Pipeline.CopyBuffer(_handle, destination._handle, srcOffset, dstOffset, size);
+        }
+
+        /// <summary>
+        /// Fills a range of the buffer with a 32-bit integer value.
+        /// </summary>
+        /// <param name="offset">Offset of the range</param>
+        /// <param name="size">Size in bytes of the range</param>
+        /// <param name="value">Value to be written on the range</param>
+        public void Fill(ulong offset, ulong size, uint value)
+        {
+            EnsurePageCommitment(Address + offset, size);
+            _context.Renderer.Pipeline.ClearBuffer(_handle, offset, size, value);
+        }
+
+        /// <summary>
+        /// If this buffer is sparse, ensures that the specified memory range is committed.
+        /// </summary>
+        /// <param name="address">Start address of the region to be committed</param>
+        /// <param name="size">Size of the region to be committed</param>
+        private void EnsurePageCommitment(ulong address, ulong size)
+        {
+            if (_pageCommitment == null)
+            {
+                return;
+            }
+
+            ulong endAddress = (address + size + MemoryManager.PageMask) & ~MemoryManager.PageMask;
+            address &= ~MemoryManager.PageMask;
+
+            int firstIndex = (int)((address - Address) / MemoryManager.PageSize);
+            int endIndex = (int)((endAddress - Address) / MemoryManager.PageSize);
+
+            ulong rgOffset = 0;
+            ulong rgSize = 0;
+
+            for (int i = firstIndex; i < endIndex; i++)
+            {
+                if (!_pageCommitment[i])
+                {
+                    if (rgSize == 0)
+                    {
+                        rgOffset = (ulong)i * MemoryManager.PageSize;
+                    }
+
+                    rgSize += MemoryManager.PageSize;
+                    _pageCommitment[i] = true;
+                }
+                else if (rgSize != 0)
+                {
+                    _context.Renderer.CommitBufferRange(_handle, rgOffset, rgSize, true);
+                    rgSize = 0;
+                }
+            }
+
+            if (rgSize != 0)
+            {
+                _context.Renderer.CommitBufferRange(_handle, rgOffset, rgSize, true);
+            }
         }
 
         /// <summary>
@@ -410,9 +548,10 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="size">Size in bytes of the range</param>
         public void Flush(ulong address, ulong size)
         {
-            int offset = (int)(address - Address);
+            EnsurePageCommitment(address, size);
+            ulong offset = address - Address;
 
-            byte[] data = _context.Renderer.GetBufferData(Handle, offset, (int)size);
+            byte[] data = _context.Renderer.GetBufferData(_handle, offset, (int)size);
 
             // TODO: When write tracking shaders, they will need to be aware of changes in overlapping buffers.
             _physicalMemory.WriteUntracked(address, data);
@@ -472,7 +611,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         {
             _modifiedRanges?.Clear();
 
-            _context.Renderer.DeleteBuffer(Handle);
+            _context.Renderer.DeleteBuffer(_handle);
 
             UnmappedSequence++;
         }

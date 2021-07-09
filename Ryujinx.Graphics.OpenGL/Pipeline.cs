@@ -91,7 +91,7 @@ namespace Ryujinx.Graphics.OpenGL
             _tfEnabled = true;
         }
 
-        public void ClearBuffer(BufferHandle destination, int offset, int size, uint value)
+        public void ClearBuffer(BufferHandle destination, ulong offset, ulong size, uint value)
         {
             Buffer.Clear(destination, offset, size, value);
         }
@@ -154,7 +154,7 @@ namespace Ryujinx.Graphics.OpenGL
             }
         }
 
-        public void CopyBuffer(BufferHandle source, BufferHandle destination, int srcOffset, int dstOffset, int size)
+        public void CopyBuffer(BufferHandle source, BufferHandle destination, ulong srcOffset, ulong dstOffset, ulong size)
         {
             Buffer.Copy(source, destination, srcOffset, dstOffset, size);
         }
@@ -1117,7 +1117,7 @@ namespace Ryujinx.Graphics.OpenGL
                     continue;
                 }
 
-                GL.BindBufferRange(target, index, buffer.Handle.ToInt32(), (IntPtr)buffer.Offset, buffer.Size);
+                GL.BindBufferRange(target, index, buffer.Handle.ToInt32(), (IntPtr)buffer.Offset, (IntPtr)buffer.Size);
             }
         }
 

@@ -54,11 +54,16 @@ namespace Ryujinx.Graphics.OpenGL
             return new Shader(stage, code);
         }
 
-        public BufferHandle CreateBuffer(int size)
+        public void CommitBufferRange(BufferHandle buffer, ulong offset, ulong size, bool commit)
+        {
+            Buffer.PageCommitment(buffer, offset, size, commit);
+        }
+
+        public BufferHandle CreateBuffer(ulong size, BufferCreateFlags flags)
         {
             BufferCount++;
 
-            return Buffer.Create(size);
+            return Buffer.Create(size, flags);
         }
 
         public IProgram CreateProgram(IShader[] shaders, TransformFeedbackDescriptor[] transformFeedbackDescriptors)
@@ -88,7 +93,7 @@ namespace Ryujinx.Graphics.OpenGL
             Buffer.Delete(buffer);
         }
 
-        public byte[] GetBufferData(BufferHandle buffer, int offset, int size)
+        public byte[] GetBufferData(BufferHandle buffer, ulong offset, int size)
         {
             return Buffer.GetData(buffer, offset, size);
         }
@@ -100,6 +105,7 @@ namespace Ryujinx.Graphics.OpenGL
                 HwCapabilities.SupportsImageLoadFormatted,
                 HwCapabilities.SupportsMismatchingViewFormat,
                 HwCapabilities.SupportsNonConstantTextureOffset,
+                HwCapabilities.SupportsSparseBuffer,
                 HwCapabilities.SupportsTextureShadowLod,
                 HwCapabilities.SupportsViewportSwizzle,
                 HwCapabilities.MaximumComputeSharedMemorySize,
@@ -107,7 +113,7 @@ namespace Ryujinx.Graphics.OpenGL
                 HwCapabilities.StorageBufferOffsetAlignment);
         }
 
-        public void SetBufferData(BufferHandle buffer, int offset, ReadOnlySpan<byte> data)
+        public void SetBufferData(BufferHandle buffer, ulong offset, ReadOnlySpan<byte> data)
         {
             Buffer.SetData(buffer, offset, data);
         }

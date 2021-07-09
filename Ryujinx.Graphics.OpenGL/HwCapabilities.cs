@@ -11,6 +11,7 @@ namespace Ryujinx.Graphics.OpenGL
         private static readonly Lazy<bool> _supportsPolygonOffsetClamp        = new Lazy<bool>(() => HasExtension("GL_EXT_polygon_offset_clamp"));
         private static readonly Lazy<bool> _supportsQuads                     = new Lazy<bool>(SupportsQuadsCheck);
         private static readonly Lazy<bool> _supportsSeamlessCubemapPerTexture = new Lazy<bool>(() => HasExtension("GL_ARB_seamless_cubemap_per_texture"));
+        private static readonly Lazy<bool> _supportsSparseBuffer              = new Lazy<bool>(() => HasExtension("GL_ARB_sparse_buffer"));
         private static readonly Lazy<bool> _supportsTextureShadowLod          = new Lazy<bool>(() => HasExtension("GL_EXT_texture_shadow_lod"));
         private static readonly Lazy<bool> _supportsViewportSwizzle           = new Lazy<bool>(() => HasExtension("GL_NV_viewport_swizzle"));
 
@@ -38,6 +39,7 @@ namespace Ryujinx.Graphics.OpenGL
         public static bool SupportsPolygonOffsetClamp        => _supportsPolygonOffsetClamp.Value;
         public static bool SupportsQuads                     => _supportsQuads.Value;
         public static bool SupportsSeamlessCubemapPerTexture => _supportsSeamlessCubemapPerTexture.Value;
+        public static bool SupportsSparseBuffer              => _supportsSparseBuffer.Value;
         public static bool SupportsTextureShadowLod          => _supportsTextureShadowLod.Value;
         public static bool SupportsViewportSwizzle           => _supportsViewportSwizzle.Value;
 

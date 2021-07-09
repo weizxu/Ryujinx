@@ -8,10 +8,10 @@ namespace Ryujinx.Graphics.GAL
 
         public BufferHandle Handle { get; }
 
-        public int Offset { get; }
-        public int Size   { get; }
+        public ulong Offset { get; }
+        public ulong Size   { get; }
 
-        public BufferRange(BufferHandle handle, int offset, int size)
+        public BufferRange(BufferHandle handle, ulong offset, ulong size)
         {
             Handle = handle;
             Offset = offset;

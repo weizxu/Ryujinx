@@ -30,7 +30,7 @@ namespace Ryujinx
         private extern static int XInitThreads();
 
         static void Main(string[] args)
-        { 
+        {
             // Parse Arguments.
             string launchPathArg      = null;
             string baseDirPathArg     = null;

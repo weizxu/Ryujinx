@@ -107,7 +107,7 @@ namespace Ryujinx.Graphics.Gpu.Engine
             {
                 int firstVertex = state.Get<int>(MethodOffset.FirstVertex);
 
-                BufferRange br = new BufferRange(_ibStreamer.GetInlineIndexBuffer(), 0, inlineIndexCount * 4);
+                BufferRange br = new BufferRange(_ibStreamer.GetInlineIndexBuffer(), 0, (ulong)inlineIndexCount * 4);
 
                 state.Channel.BufferManager.SetIndexBuffer(br, IndexType.UInt);
 

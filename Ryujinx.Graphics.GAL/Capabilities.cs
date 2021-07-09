@@ -6,6 +6,7 @@ namespace Ryujinx.Graphics.GAL
         public bool SupportsImageLoadFormatted       { get; }
         public bool SupportsMismatchingViewFormat    { get; }
         public bool SupportsNonConstantTextureOffset { get; }
+        public bool SupportsSparseBuffer             { get; }
         public bool SupportsTextureShadowLod         { get; }
         public bool SupportsViewportSwizzle          { get; }
 
@@ -18,6 +19,7 @@ namespace Ryujinx.Graphics.GAL
             bool  supportsImageLoadFormatted,
             bool  supportsMismatchingViewFormat,
             bool  supportsNonConstantTextureOffset,
+            bool  supportsSparseBuffer,
             bool  supportsTextureShadowLod,
             bool  supportsViewportSwizzle,
             int   maximumComputeSharedMemorySize,
@@ -28,6 +30,7 @@ namespace Ryujinx.Graphics.GAL
             SupportsImageLoadFormatted       = supportsImageLoadFormatted;
             SupportsMismatchingViewFormat    = supportsMismatchingViewFormat;
             SupportsNonConstantTextureOffset = supportsNonConstantTextureOffset;
+            SupportsSparseBuffer             = supportsSparseBuffer;
             SupportsTextureShadowLod         = supportsTextureShadowLod;
             SupportsViewportSwizzle          = supportsViewportSwizzle;
             MaximumComputeSharedMemorySize   = maximumComputeSharedMemorySize;

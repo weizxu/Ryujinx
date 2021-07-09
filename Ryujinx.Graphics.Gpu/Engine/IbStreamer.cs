@@ -12,7 +12,7 @@ namespace Ryujinx.Graphics.Gpu.Engine
     struct IbStreamer
     {
         private BufferHandle _inlineIndexBuffer;
-        private int _inlineIndexBufferSize;
+        private ulong _inlineIndexBufferSize;
         private int _inlineIndexCount;
 
         public bool HasInlineIndexData => _inlineIndexCount != 0;
@@ -57,7 +57,7 @@ namespace Ryujinx.Graphics.Gpu.Engine
             data[2] = i2;
             data[3] = i3;
 
-            int offset = _inlineIndexCount * 4;
+            ulong offset = (ulong)_inlineIndexCount * 4;
 
             renderer.SetBufferData(GetInlineIndexBuffer(renderer, offset), offset, MemoryMarshal.Cast<uint, byte>(data));
 
@@ -79,7 +79,7 @@ namespace Ryujinx.Graphics.Gpu.Engine
             data[0] = i0;
             data[1] = i1;
 
-            int offset = _inlineIndexCount * 4;
+            ulong offset = (ulong)_inlineIndexCount * 4;
 
             renderer.SetBufferData(GetInlineIndexBuffer(renderer, offset), offset, MemoryMarshal.Cast<uint, byte>(data));
 
@@ -99,7 +99,7 @@ namespace Ryujinx.Graphics.Gpu.Engine
 
             data[0] = i0;
 
-            int offset = _inlineIndexCount++ * 4;
+            ulong offset = (ulong)_inlineIndexCount++ * 4;
 
             renderer.SetBufferData(GetInlineIndexBuffer(renderer, offset), offset, MemoryMarshal.Cast<uint, byte>(data));
         }
@@ -110,23 +110,23 @@ namespace Ryujinx.Graphics.Gpu.Engine
         /// <param name="renderer">Host renderer</param>
         /// <param name="offset">Offset where the data will be written</param>
         /// <returns>Buffer handle</returns>
-        private BufferHandle GetInlineIndexBuffer(IRenderer renderer, int offset)
+        private BufferHandle GetInlineIndexBuffer(IRenderer renderer, ulong offset)
         {
             // Calculate a reasonable size for the buffer that can fit all the data,
             // and that also won't require frequent resizes if we need to push more data.
-            int size = BitUtils.AlignUp(offset + 0x10, 0x200);
+            ulong size = BitUtils.AlignUp(offset + 0x10, 0x200);
 
             if (_inlineIndexBuffer == BufferHandle.Null)
             {
-                _inlineIndexBuffer = renderer.CreateBuffer(size);
+                _inlineIndexBuffer = renderer.CreateBuffer(size, BufferCreateFlags.None);
                 _inlineIndexBufferSize = size;
             }
             else if (_inlineIndexBufferSize < size)
             {
                 BufferHandle oldBuffer = _inlineIndexBuffer;
-                int oldSize = _inlineIndexBufferSize;
+                ulong oldSize = _inlineIndexBufferSize;
 
-                _inlineIndexBuffer = renderer.CreateBuffer(size);
+                _inlineIndexBuffer = renderer.CreateBuffer(size, BufferCreateFlags.None);
                 _inlineIndexBufferSize = size;
 
                 renderer.Pipeline.CopyBuffer(oldBuffer, _inlineIndexBuffer, 0, 0, oldSize);

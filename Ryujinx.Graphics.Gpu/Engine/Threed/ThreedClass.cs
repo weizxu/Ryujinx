@@ -16,6 +16,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         private readonly DeviceStateWithShadow<ThreedClassState> _state;
 
         private readonly InlineToMemoryClass _i2mClass;
+        private readonly AdvancedBlendManager _advBlendManager;
         private readonly DrawManager _drawManager;
         private readonly SemaphoreUpdater _semaphoreUpdater;
         private readonly ConstantBufferUpdater _cbUpdater;
@@ -35,6 +36,8 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
                 { nameof(ThreedClassState.LoadInlineData), new RwCallback(LoadInlineData, null) },
                 { nameof(ThreedClassState.SyncpointAction), new RwCallback(IncrementSyncpoint, null) },
                 { nameof(ThreedClassState.TextureBarrier), new RwCallback(TextureBarrier, null) },
+                { nameof(ThreedClassState.LoadBlendUcodeStart), new RwCallback(LoadBlendUcodeStart, null) },
+                { nameof(ThreedClassState.LoadBlendUcodeInstruction), new RwCallback(LoadBlendUcodeInstruction, null) },
                 { nameof(ThreedClassState.TextureBarrierTiled), new RwCallback(TextureBarrierTiled, null) },
                 { nameof(ThreedClassState.VbElementU8), new RwCallback(VbElementU8, null) },
                 { nameof(ThreedClassState.VbElementU16), new RwCallback(VbElementU16, null) },
@@ -64,6 +67,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
             var drawState = new DrawState();
 
             _drawManager = new DrawManager(context, channel, _state, drawState);
+            _advBlendManager = new AdvancedBlendManager();
             _semaphoreUpdater = new SemaphoreUpdater(context, channel, _state);
             _cbUpdater = new ConstantBufferUpdater(channel, _state);
             _stateUpdater = new StateUpdater(context, channel, _state, drawState);
@@ -235,6 +239,24 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         private void TextureBarrier(int argument)
         {
             _context.Renderer.Pipeline.TextureBarrier();
+        }
+
+        /// <summary>
+        /// Sets the start offset of the blend microcode in memory.
+        /// </summary>
+        /// <param name="argument">Method call argument</param>
+        private void LoadBlendUcodeStart(int argument)
+        {
+            _advBlendManager.LoadBlendUcodeStart(argument);
+        }
+
+        /// <summary>
+        /// Pushes one word of blend microcode.
+        /// </summary>
+        /// <param name="argument">Method call argument</param>
+        private void LoadBlendUcodeInstruction(int argument)
+        {
+            _advBlendManager.LoadBlendUcodeInstruction(argument);
         }
 
         /// <summary>

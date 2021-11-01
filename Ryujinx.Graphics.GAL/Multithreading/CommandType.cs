@@ -58,6 +58,7 @@
         MultiDrawIndirectCount,
         MultiDrawIndexedIndirectCount,
         SetAlphaTest,
+        SetBlendStateAdvanced,
         SetBlendState,
         SetDepthBias,
         SetDepthClamp,

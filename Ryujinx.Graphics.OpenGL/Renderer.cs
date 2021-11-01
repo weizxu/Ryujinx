@@ -104,6 +104,7 @@ namespace Ryujinx.Graphics.OpenGL
                 HwCapabilities.Vendor == HwCapabilities.GpuVendor.IntelWindows,
                 HwCapabilities.Vendor == HwCapabilities.GpuVendor.AmdWindows,
                 HwCapabilities.SupportsAstcCompression,
+                HwCapabilities.SupportsBlendEquationAdvanced,
                 HwCapabilities.SupportsFragmentShaderInterlock,
                 HwCapabilities.SupportsFragmentShaderOrdering,
                 HwCapabilities.SupportsImageLoadFormatted,

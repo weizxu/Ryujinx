@@ -1,6 +1,7 @@
 ﻿using Ryujinx.Graphics.Device;
 using Ryujinx.Graphics.GAL;
 using Ryujinx.Graphics.Gpu.Engine.InlineToMemory;
+using Ryujinx.Graphics.Gpu.Engine.Threed.Blender;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -16,7 +17,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         private readonly DeviceStateWithShadow<ThreedClassState> _state;
 
         private readonly InlineToMemoryClass _i2mClass;
-        private readonly AdvancedBlendManager _advBlendManager;
+        private readonly AdvancedBlendManager _blendManager;
         private readonly DrawManager _drawManager;
         private readonly SemaphoreUpdater _semaphoreUpdater;
         private readonly ConstantBufferUpdater _cbUpdater;
@@ -67,10 +68,10 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
             var drawState = new DrawState();
 
             _drawManager = new DrawManager(context, channel, _state, drawState);
-            _advBlendManager = new AdvancedBlendManager();
+            _blendManager = new AdvancedBlendManager(_state);
             _semaphoreUpdater = new SemaphoreUpdater(context, channel, _state);
             _cbUpdater = new ConstantBufferUpdater(channel, _state);
-            _stateUpdater = new StateUpdater(context, channel, _state, drawState);
+            _stateUpdater = new StateUpdater(context, channel, _state, drawState, _blendManager);
 
             // This defaults to "always", even without any register write.
             // Reads just return 0, regardless of what was set there.
@@ -247,7 +248,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         /// <param name="argument">Method call argument</param>
         private void LoadBlendUcodeStart(int argument)
         {
-            _advBlendManager.LoadBlendUcodeStart(argument);
+            _blendManager.LoadBlendUcodeStart(argument);
         }
 
         /// <summary>
@@ -256,7 +257,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         /// <param name="argument">Method call argument</param>
         private void LoadBlendUcodeInstruction(int argument)
         {
-            _advBlendManager.LoadBlendUcodeInstruction(argument);
+            _blendManager.LoadBlendUcodeInstruction(argument);
         }
 
         /// <summary>

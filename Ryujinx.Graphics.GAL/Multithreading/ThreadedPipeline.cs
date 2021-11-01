@@ -113,6 +113,12 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             _renderer.QueueCommand();
         }
 
+        public void SetBlendState(AdvancedBlendDescriptor blend)
+        {
+            _renderer.New<SetBlendStateAdvancedCommand>().Set(blend);
+            _renderer.QueueCommand();
+        }
+
         public void SetBlendState(int index, BlendDescriptor blend)
         {
             _renderer.New<SetBlendStateCommand>().Set(index, blend);

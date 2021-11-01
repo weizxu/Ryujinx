@@ -52,6 +52,8 @@ namespace Ryujinx.Graphics.OpenGL
         private ClipOrigin _clipOrigin;
         private ClipDepthMode _clipDepthMode;
 
+        private bool _advancedBlendEnable;
+
         private readonly uint[] _componentMasks;
 
         private uint _scissorEnables;
@@ -613,8 +615,26 @@ namespace Ryujinx.Graphics.OpenGL
             GL.Enable(EnableCap.AlphaTest);
         }
 
+        public void SetBlendState(AdvancedBlendDescriptor blend)
+        {
+            if (HwCapabilities.SupportsBlendEquationAdvanced)
+            {
+                GL.BlendEquation((BlendEquationMode)blend.Mode.Convert());
+                GL.NV.BlendParameter(NvBlendEquationAdvanced.BlendOverlapNv, (int)blend.Overlap.Convert());
+                GL.NV.BlendParameter(NvBlendEquationAdvanced.BlendPremultipliedSrcNv, blend.SrcPreMultiplied ? 1 : 0);
+                GL.Enable(EnableCap.Blend);
+                _advancedBlendEnable = true;
+            }
+        }
+
         public void SetBlendState(int index, BlendDescriptor blend)
         {
+            if (_advancedBlendEnable)
+            {
+                GL.Disable(EnableCap.Blend);
+                _advancedBlendEnable = false;
+            }
+
             if (!blend.Enable)
             {
                 GL.Disable(IndexedEnableCap.Blend, index);

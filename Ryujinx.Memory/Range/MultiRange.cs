@@ -8,6 +8,8 @@ namespace Ryujinx.Memory.Range
     /// </summary>
     public struct MultiRange : IEquatable<MultiRange>
     {
+        public static MultiRange Empty => new MultiRange(0UL, 0UL);
+
         private readonly MemoryRange _singleRange;
         private readonly MemoryRange[] _ranges;
 

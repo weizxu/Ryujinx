@@ -329,6 +329,26 @@ namespace Ryujinx.Graphics.Gpu.Memory
         }
 
         /// <summary>
+        /// Obtains a memory tracking handle for the given virtual region, with a specified granularity. This should be disposed when finished with.
+        /// </summary>
+        /// <param name="range">Ranges of physical memory where the data is located</param>
+        /// <param name="handles">Handles to inherit state from or reuse</param>
+        /// <param name="granularity">Desired granularity of write tracking</param>
+        /// <returns>The memory tracking handle</returns>
+        public GpuMultiRegionHandle BeginGranularTracking(MultiRange range, IEnumerable<IRegionHandle> handles = null, ulong granularity = 4096)
+        {
+            var cpuRegionHandles = new CpuMultiRegionHandle[range.Count];
+
+            for (int i = 0; i < range.Count; i++)
+            {
+                var currentRange = range.GetSubRange(i);
+                cpuRegionHandles[i] = _cpuMemory.BeginGranularTracking(currentRange.Address, currentRange.Size, handles, granularity);
+            }
+
+            return new GpuMultiRegionHandle(cpuRegionHandles);
+        }
+
+        /// <summary>
         /// Obtains a smart memory tracking handle for the given virtual region, with a specified granularity. This should be disposed when finished with.
         /// </summary>
         /// <param name="address">CPU virtual address of the region</param>

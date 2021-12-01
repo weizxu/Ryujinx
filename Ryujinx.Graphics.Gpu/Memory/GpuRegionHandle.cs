@@ -52,6 +52,38 @@ namespace Ryujinx.Graphics.Gpu.Memory
         }
 
         /// <summary>
+        /// Check if this handle is dirty, or if it is volatile. (changes very often)
+        /// </summary>
+        /// <returns>True if the handle is dirty or volatile, false otherwise</returns>
+        public bool DirtyOrVolatile()
+        {
+            foreach (var regionHandle in _cpuRegionHandles)
+            {
+                if (regionHandle.DirtyOrVolatile())
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Force the handles to be dirty, without reprotecting.
+        /// </summary>
+        public void ForceDirty()
+        {
+            foreach (var regionHandle in _cpuRegionHandles)
+            {
+                regionHandle.ForceDirty();
+            }
+        }
+        public IRegionHandle GetHandle()
+        {
+            return _cpuRegionHandles[0].GetHandle();
+        }
+
+        /// <summary>
         /// Register an action to perform when the tracked region is read or written.
         /// The action is automatically removed after it runs.
         /// </summary>
@@ -85,17 +117,6 @@ namespace Ryujinx.Graphics.Gpu.Memory
             foreach (var regionHandle in _cpuRegionHandles)
             {
                 regionHandle.Reprotect(asDirty);
-            }
-        }
-
-        /// <summary>
-        /// Force the handles to be dirty, without reprotecting.
-        /// </summary>
-        public void ForceDirty()
-        {
-            foreach (var regionHandle in _cpuRegionHandles)
-            {
-                regionHandle.ForceDirty();
             }
         }
     }

@@ -347,5 +347,10 @@ namespace Ryujinx.Memory.Range
 
             return hash.ToHashCode();
         }
+
+        public override string ToString()
+        {
+            return HasSingleRange ? _singleRange.ToString() : string.Join(", ", _ranges);
+        }
     }
 }

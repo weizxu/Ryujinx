@@ -7,6 +7,7 @@ using Ryujinx.Memory.Range;
 using Ryujinx.Memory.Tracking;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 
 namespace Ryujinx.Graphics.Gpu.Memory
@@ -342,7 +343,14 @@ namespace Ryujinx.Graphics.Gpu.Memory
             for (int i = 0; i < range.Count; i++)
             {
                 var currentRange = range.GetSubRange(i);
-                cpuRegionHandles[i] = _cpuMemory.BeginGranularTracking(currentRange.Address, currentRange.Size, handles, granularity);
+                var handlesForRange = handles;
+
+                if (handles != null && range.Count > 1)
+                {
+                    handlesForRange = handles.Where(x => x.Address >= currentRange.Address && x.EndAddress <= currentRange.EndAddress);
+                }
+
+                cpuRegionHandles[i] = _cpuMemory.BeginGranularTracking(currentRange.Address, currentRange.Size, handlesForRange, granularity);
             }
 
             return new GpuMultiRegionHandle(cpuRegionHandles);

@@ -309,8 +309,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
             int overlapsCount = _discontinuousBuffers.FindOverlaps(range, ref _bufferOverlaps);
 
             MultiRange requestedRange = range;
-            MemoryRange otherFirstSubRange = range.GetSubRange(0);
-            MemoryRange otherLastSubRange = range.GetSubRange(range.Count - 1);
+            MemoryRange requestedFirstSubRange = range.GetSubRange(0);
+            MemoryRange requestedLastSubRange = range.GetSubRange(range.Count - 1);
 
             for (int index = 0; index < overlapsCount; index++)
             {
@@ -325,18 +325,20 @@ namespace Ryujinx.Graphics.Gpu.Memory
                     return;
                 }
 
-                if (lastSubRange.OverlapsWith(otherFirstSubRange))
+                if (lastSubRange.OverlapsWith(requestedFirstSubRange))
                 {
-                    range = MergeRanges(range, overlap.Range, lastSubRange, otherFirstSubRange);
+                    range = MergeRanges(overlap.Range, range, lastSubRange, requestedFirstSubRange);
                 }
-                else if (firstSubRange.OverlapsWith(otherLastSubRange))
+                else if (firstSubRange.OverlapsWith(requestedLastSubRange))
                 {
-                    range = MergeRanges(overlap.Range, range, otherLastSubRange, firstSubRange);
+                    range = MergeRanges(range, overlap.Range, requestedLastSubRange, firstSubRange);
                 }
             }
 
             // None of the existing buffers fully contains the discontinuous range, create a new one.
             Buffer buffer = new Buffer(_context, _physicalMemory, range);
+
+            _discontinuousBuffers.Add(buffer);
 
             bool anyOverlapContained = false;
 
@@ -373,12 +375,12 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
             for (int i = 0; i < overlapIndex; i++)
             {
-                subRanges[i] = right.GetSubRange(i);
+                subRanges[i] = left.GetSubRange(i);
             }
 
             for (int i = 1; i < right.Count; i++)
             {
-                subRanges[overlapIndex + i] = left.GetSubRange(i);
+                subRanges[overlapIndex + i] = right.GetSubRange(i);
             }
 
             subRanges[overlapIndex] = new MemoryRange(lLastRange.Address, rFirstRange.EndAddress - lLastRange.Address);
@@ -536,17 +538,25 @@ namespace Ryujinx.Graphics.Gpu.Memory
             }
             else if (range.Count != 0)
             {
+                System.Console.WriteLine("find " + range);
                 int overlapCount = _discontinuousBuffers.FindOverlaps(range, ref _bufferOverlaps);
 
                 for (int index = 0; index < overlapCount; index++)
                 {
                     Buffer overlap = _bufferOverlaps[index];
 
+                    System.Console.WriteLine("found overlap " + overlap.Range);
+
                     if (overlap.Range.Contains(range))
                     {
                         buffer = overlap;
                         break;
                     }
+                }
+
+                if (buffer == null)
+                {
+                    throw new Exception("NOT FOUND!");
                 }
 
                 buffer.SynchronizeMemory(range);

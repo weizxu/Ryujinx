@@ -1,5 +1,6 @@
 ﻿using Ryujinx.Graphics.GAL;
 using Ryujinx.Graphics.Gpu.Image;
+using Ryujinx.Memory.Range;
 
 namespace Ryujinx.Graphics.Gpu.Memory
 {
@@ -14,14 +15,9 @@ namespace Ryujinx.Graphics.Gpu.Memory
         public ITexture Texture { get; }
 
         /// <summary>
-        /// The base address of the buffer binding.
+        /// Region of memory where the texture data is located.
         /// </summary>
-        public ulong Address { get; }
-
-        /// <summary>
-        /// The size of the buffer binding in bytes.
-        /// </summary>
-        public ulong Size { get; }
+        public MultiRange Range { get; }
 
         /// <summary>
         /// The image or sampler binding info for the buffer texture.
@@ -42,16 +38,14 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// Create a new buffer texture binding.
         /// </summary>
         /// <param name="texture">Buffer texture</param>
-        /// <param name="address">Base address</param>
-        /// <param name="size">Size in bytes</param>
+        /// <param name="range">Region of memory where the texture data is located</param>
         /// <param name="bindingInfo">Binding info</param>
         /// <param name="format">Binding format</param>
         /// <param name="isImage">Whether the binding is for an image or a sampler</param>
-        public BufferTextureBinding(ITexture texture, ulong address, ulong size, TextureBindingInfo bindingInfo, Format format, bool isImage)
+        public BufferTextureBinding(ITexture texture, MultiRange range, TextureBindingInfo bindingInfo, Format format, bool isImage)
         {
             Texture = texture;
-            Address = address;
-            Size = size;
+            Range = range;
             BindingInfo = bindingInfo;
             Format = format;
             IsImage = isImage;

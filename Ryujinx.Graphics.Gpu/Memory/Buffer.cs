@@ -1,4 +1,3 @@
-using Ryujinx.Cpu.Tracking;
 using Ryujinx.Graphics.GAL;
 using Ryujinx.Memory.Range;
 using Ryujinx.Memory.Tracking;
@@ -64,8 +63,6 @@ namespace Ryujinx.Graphics.Gpu.Memory
         private readonly RegionSignal _externalFlushDelegate;
         private readonly Action<ulong, ulong> _loadDelegate;
         private readonly Action<ulong, ulong> _modifiedDelegate;
-
-        private readonly Buffer[] _continuousViews;
 
         private int _sequenceNumber;
 
@@ -200,6 +197,24 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// This causes the buffer data to be overwritten if a write was detected from the CPU,
         /// since the last call to this method.
         /// </remarks>
+        /// <param name="range">Memory range of the modified region</param>
+        public void SynchronizeMemory(MultiRange range)
+        {
+            for (int index = 0; index < range.Count; index++)
+            {
+                MemoryRange subRange = range.GetSubRange(index);
+
+                SynchronizeMemory(subRange.Address, subRange.Size);
+            }
+        }
+
+        /// <summary>
+        /// Performs guest to host memory synchronization of the buffer data.
+        /// </summary>
+        /// <remarks>
+        /// This causes the buffer data to be overwritten if a write was detected from the CPU,
+        /// since the last call to this method.
+        /// </remarks>
         /// <param name="address">Start address of the range to synchronize</param>
         /// <param name="size">Size in bytes of the range to synchronize</param>
         public void SynchronizeMemory(ulong address, ulong size)
@@ -245,26 +260,11 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="range">Memory range of the modified region</param>
         public void SignalModified(MultiRange range)
         {
-            if (_continuousViews != null)
+            for (int index = 0; index < range.Count; index++)
             {
-                int startIndex = GetSubRangeStartIndex(range);
+                MemoryRange subRange = range.GetSubRange(index);
 
-                for (int index = startIndex; index < range.Count; index++)
-                {
-                    Buffer buffer = _continuousViews[index];
-                    MemoryRange subRange = range.GetSubRange(index);
-
-                    buffer.SignalModified(subRange.Address, subRange.Size);
-                }
-            }
-            else
-            {
-                for (int index = 0; index < range.Count; index++)
-                {
-                    MemoryRange subRange = range.GetSubRange(index);
-
-                    SignalModified(subRange.Address, subRange.Size);
-                }
+                SignalModified(subRange.Address, subRange.Size);
             }
         }
 
@@ -292,51 +292,12 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="range">Memory range of the region</param>
         public void ClearModified(MultiRange range)
         {
-            if (_continuousViews != null)
+            for (int index = 0; index < range.Count; index++)
             {
-                int startIndex = GetSubRangeStartIndex(range);
+                MemoryRange subRange = range.GetSubRange(index);
 
-                for (int index = startIndex; index < range.Count; index++)
-                {
-                    Buffer buffer = _continuousViews[index];
-                    MemoryRange subRange = range.GetSubRange(index);
-
-                    buffer._modifiedRanges?.Clear(subRange.Address, subRange.Size);
-                }
+                _modifiedRanges?.Clear(subRange.Address, subRange.Size);
             }
-            else
-            {
-                for (int index = 0; index < range.Count; index++)
-                {
-                    MemoryRange subRange = range.GetSubRange(index);
-
-                    _modifiedRanges?.Clear(subRange.Address, subRange.Size);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Finds where a sub-range of memory starts at inside this buffer range.
-        /// </summary>
-        /// <param name="range">Memory range contained within this buffer range</param>
-        /// <returns>The index where the sub-range starts at</returns>
-        private int GetSubRangeStartIndex(MultiRange range)
-        {
-            int startIndex = 0;
-
-            while (startIndex < _continuousViews.Length && startIndex < range.Count)
-            {
-                MemoryRange subRange = range.GetSubRange(startIndex);
-
-                if (_continuousViews[startIndex].OverlapsWith(subRange.Address, subRange.Size))
-                {
-                    break;
-                }
-
-                startIndex++;
-            }
-
-            return startIndex;
         }
 
         /// <summary>
@@ -409,31 +370,13 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <returns>True if the region has been modified, false otherwise</returns>
         public bool IsModified(MultiRange range)
         {
-            if (_continuousViews != null)
+            for (int index = 0; index < range.Count; index++)
             {
-                int startIndex = GetSubRangeStartIndex(range);
+                MemoryRange subRange = range.GetSubRange(index);
 
-                for (int index = startIndex; index < range.Count; index++)
+                if (_modifiedRanges != null && _modifiedRanges.HasRange(subRange.Address, subRange.Size))
                 {
-                    Buffer buffer = _continuousViews[index];
-                    MemoryRange subRange = range.GetSubRange(index);
-
-                    if (buffer._modifiedRanges != null && buffer._modifiedRanges.HasRange(subRange.Address, subRange.Size))
-                    {
-                        return true;
-                    }
-                }
-            }
-            else
-            {
-                for (int index = 0; index < range.Count; index++)
-                {
-                    MemoryRange subRange = range.GetSubRange(index);
-
-                    if (_modifiedRanges != null && _modifiedRanges.HasRange(subRange.Address, subRange.Size))
-                    {
-                        return true;
-                    }
+                    return true;
                 }
             }
 
@@ -447,17 +390,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="mSize">Size of the modified region</param>
         private void RegionModified(ulong mAddress, ulong mSize)
         {
-            if (mAddress < Address)
-            {
-                mAddress = Address;
-            }
-
-            ulong maxSize = Address + Size - mAddress;
-
-            if (mSize > maxSize)
-            {
-                mSize = maxSize;
-            }
+            (mAddress, mSize) = ClampRange(mAddress, mSize);
 
             if (_modifiedRanges != null)
             {
@@ -476,7 +409,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="mSize">Size of the modified region</param>
         private void LoadRegion(ulong mAddress, ulong mSize)
         {
-            int offset = (int)(mAddress - Address);
+            int offset = Range.FindOffset(new MultiRange(mAddress, mSize));
 
             _context.Renderer.SetBufferData(Handle, offset, _physicalMemory.GetSpan(mAddress, (int)mSize));
         }
@@ -519,7 +452,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="size">Size in bytes of the range</param>
         public void Flush(ulong address, ulong size)
         {
-            int offset = (int)(address - Address);
+            int offset = Range.FindOffset(new MultiRange(address, size));
 
             ReadOnlySpan<byte> data = _context.Renderer.GetBufferData(Handle, offset, (int)size);
 
@@ -576,21 +509,55 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 return false;
             }
 
-            if (address < Address)
-            {
-                address = Address;
-            }
-
-            ulong maxSize = Address + Size - address;
-
-            if (size > maxSize)
-            {
-                size = maxSize;
-            }
+            (address, size) = ClampRange(address, size);
 
             ForceDirty(address, size);
 
             return true;
+        }
+
+        private (ulong, ulong) ClampRange(ulong address, ulong size)
+        {
+            if (Range.Count == 1)
+            {
+                if (address < Address)
+                {
+                    address = Address;
+                }
+
+                ulong maxSize = Address + Size - address;
+
+                if (size > maxSize)
+                {
+                    size = maxSize;
+                }
+
+                return (address, size);
+            }
+
+            ulong endAddress = address + size;
+
+            for (int index = 0; index < Range.Count; index++)
+            {
+                MemoryRange subRange = Range.GetSubRange(index);
+
+                if (subRange.OverlapsWith(new MemoryRange(address, size)))
+                {
+                    if (address < subRange.Address)
+                    {
+                        address = subRange.Address;
+                    }
+
+                    if (endAddress > subRange.EndAddress)
+                    {
+                        endAddress = subRange.EndAddress;
+                    }
+
+                    break;
+                }
+            }
+
+            return (address, endAddress - address);
         }
 
         /// <summary>

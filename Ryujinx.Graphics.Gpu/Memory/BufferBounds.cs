@@ -1,4 +1,5 @@
 using Ryujinx.Graphics.Shader;
+using Ryujinx.Memory.Range;
 
 namespace Ryujinx.Graphics.Gpu.Memory
 {
@@ -8,14 +9,9 @@ namespace Ryujinx.Graphics.Gpu.Memory
     struct BufferBounds
     {
         /// <summary>
-        /// Region virtual address.
+        /// Region where the data is located.
         /// </summary>
-        public ulong Address { get; }
-
-        /// <summary>
-        /// Region size in bytes.
-        /// </summary>
-        public ulong Size { get; }
+        public MultiRange Range { get; }
 
         /// <summary>
         /// Buffer usage flags.
@@ -25,13 +21,11 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <summary>
         /// Creates a new buffer region.
         /// </summary>
-        /// <param name="address">Region address</param>
-        /// <param name="size">Region size</param>
+        /// <param name="range">Region where the data is located</param>
         /// <param name="flags">Buffer usage flags</param>
-        public BufferBounds(ulong address, ulong size, BufferUsageFlags flags = BufferUsageFlags.None)
+        public BufferBounds(MultiRange range, BufferUsageFlags flags = BufferUsageFlags.None)
         {
-            Address = address;
-            Size = size;
+            Range = range;
             Flags = flags;
         }
     }

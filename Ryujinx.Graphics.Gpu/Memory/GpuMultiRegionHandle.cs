@@ -2,6 +2,7 @@ using Ryujinx.Cpu.Tracking;
 using Ryujinx.Memory.Range;
 using Ryujinx.Memory.Tracking;
 using System;
+using System.Collections.Generic;
 
 namespace Ryujinx.Graphics.Gpu.Memory
 {
@@ -65,6 +66,18 @@ namespace Ryujinx.Graphics.Gpu.Memory
                     regionHandle.ForceDirty(clampedAddress, clampedSize);
                 }
             }
+        }
+
+        public IEnumerable<IRegionHandle> GetHandles()
+        {
+            List<IRegionHandle> handles = new List<IRegionHandle>();
+
+            foreach (var regionHandle in _cpuRegionHandles)
+            {
+                handles.AddRange(regionHandle.GetHandles());
+            }
+
+            return handles;
         }
 
         /// <summary>

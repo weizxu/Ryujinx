@@ -563,7 +563,6 @@ namespace Ryujinx.Graphics.Shader.Translation
 
             if (handleType != TextureHandleType.CombinedSampler)
             {
-
                 Operand handle2 = config.CreateCbuf(samplerCbufSlot, samplerWordOffset);
 
                 if (handleType == TextureHandleType.SeparateSamplerId)

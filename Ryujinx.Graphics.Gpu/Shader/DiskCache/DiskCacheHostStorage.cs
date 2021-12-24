@@ -153,6 +153,11 @@ namespace Ryujinx.Graphics.Gpu.Shader.DiskCache
             /// Bit mask of the render target components written by the fragment stage.
             /// </summary>
             public int FragmentOutputMap;
+
+            /// <summary>
+            /// Flags indicating if and how bindless texture accesses were translated for the shader stage.
+            /// </summary>
+            public BindlessTextureFlags BindlessTextureFlags;
         }
 
         private readonly DiskCacheGuestStorage _guestStorage;
@@ -703,6 +708,7 @@ namespace Ryujinx.Graphics.Gpu.Shader.DiskCache
                 textures,
                 images,
                 dataInfo.Stage,
+                dataInfo.BindlessTextureFlags,
                 dataInfo.UsesInstanceId,
                 dataInfo.UsesRtLayer,
                 dataInfo.ClipDistancesWritten,
@@ -728,6 +734,7 @@ namespace Ryujinx.Graphics.Gpu.Shader.DiskCache
             dataInfo.TexturesCount = (ushort)info.Textures.Count;
             dataInfo.ImagesCount = (ushort)info.Images.Count;
             dataInfo.Stage = info.Stage;
+            dataInfo.BindlessTextureFlags = info.BindlessTextureFlags;
             dataInfo.UsesInstanceId = info.UsesInstanceId;
             dataInfo.UsesRtLayer = info.UsesRtLayer;
             dataInfo.ClipDistancesWritten = info.ClipDistancesWritten;

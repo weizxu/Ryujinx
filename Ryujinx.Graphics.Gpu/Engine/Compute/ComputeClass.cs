@@ -222,6 +222,8 @@ namespace Ryujinx.Graphics.Gpu.Engine.Compute
                     descriptor.Flags);
             }
 
+            _channel.TextureManager.SetComputeBindlessTextureFlags(info.BindlessTextureFlags);
+
             _channel.TextureManager.CommitComputeBindings();
             _channel.BufferManager.CommitComputeBindings();
 

@@ -880,7 +880,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
                     {
                         IndexType ibType = _state.State.IndexBufferState.Type;
                         ulong ibGpuVa = _state.State.IndexBufferState.Address.Pack();
-                        ulong vertexCount = IbUtils.GetVertexCount(_channel.MemoryManager, ibType, ibGpuVa, firstIndex, indexCount);
+                        ulong vertexCount = (ulong)_state.State.FirstVertex + IbUtils.GetVertexCount(_channel.MemoryManager, ibType, ibGpuVa, firstIndex, indexCount);
 
                         size = Math.Min(vertexCount * (ulong)stride, vbSizeMax);
                     }

@@ -38,5 +38,19 @@ namespace Ryujinx.Memory.Tests
 
             Assert.AreEqual(Marshal.ReadInt32(_memoryBlock.Pointer, 0x2040), 0xbadc0de);
         }
+
+        [Test]
+        public void Test_Alias()
+        {
+            MemoryBlock backing = new MemoryBlock(0x10000, MemoryAllocationFlags.Mirrorable);
+            MemoryBlock toAlias = new MemoryBlock(0x10000, MemoryAllocationFlags.Reserve | MemoryAllocationFlags.ViewCompatible);
+
+            toAlias.MapView(backing, 0x1000, 0, 0x4000);
+            toAlias.UnmapView(0x3000, 0x1000);
+
+            toAlias.Write(0, 0xbadc0de);
+
+            Assert.AreEqual(Marshal.ReadInt32(backing.Pointer, 0x1000), 0xbadc0de);
+        }
     }
 }

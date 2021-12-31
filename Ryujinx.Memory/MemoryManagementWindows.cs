@@ -10,6 +10,8 @@ namespace Ryujinx.Memory
     {
         private const int PageSize = 0x1000;
 
+        private static readonly PlaceholderManager _placeholders = new PlaceholderManager();
+
         private static readonly IntPtr InvalidHandleValue = new IntPtr(-1);
         private static readonly IntPtr CurrentProcessHandle = new IntPtr(-1);
 
@@ -90,7 +92,9 @@ namespace Ryujinx.Memory
         {
             if (viewCompatible)
             {
-                return AllocateInternal2(size, AllocationType.Reserve | AllocationType.ReservePlaceholder);
+                IntPtr baseAddress = AllocateInternal2(size, AllocationType.Reserve | AllocationType.ReservePlaceholder);
+                _placeholders.ReserveRange((ulong)baseAddress, (ulong)size);
+                return baseAddress;
             }
 
             return AllocateInternal(size, AllocationType.Reserve);
@@ -132,67 +136,55 @@ namespace Ryujinx.Memory
 
         public static void MapView(IntPtr sharedMemory, ulong srcOffset, IntPtr location, IntPtr size)
         {
-            IntPtr endLocation = (nint)location + (nint)size;
+            _placeholders.UnmapRange((ulong)location, (ulong)size);
 
-            while (location != endLocation)
+            // System.Console.WriteLine($"map view {((ulong)location):X} {((ulong)size):X}");
+
+            var ptr = MapViewOfFile3(
+                sharedMemory,
+                CurrentProcessHandle,
+                location,
+                srcOffset,
+                size,
+                0x4000,
+                MemoryProtection.ReadWrite,
+                IntPtr.Zero,
+                0);
+
+            if (ptr == IntPtr.Zero)
             {
-                VirtualFree(location, (IntPtr)PageSize, AllocationType.Release | AllocationType.PreservePlaceholder);
-
-                var ptr = MapViewOfFile3(
-                    sharedMemory,
-                    CurrentProcessHandle,
-                    location,
-                    srcOffset,
-                    (IntPtr)PageSize,
-                    0x4000,
-                    MemoryProtection.ReadWrite,
-                    IntPtr.Zero,
-                    0);
-
-                if (ptr == IntPtr.Zero)
-                {
-                    throw new Exception($"MapViewOfFile3 failed with error code 0x{GetLastError():X}.");
-                }
-
-                location += PageSize;
-                srcOffset += PageSize;
+                throw new Exception($"MapViewOfFile3 failed with error code 0x{GetLastError():X}.");
             }
         }
 
         public static void UnmapView(IntPtr location, IntPtr size)
         {
-            IntPtr endLocation = (nint)location + (int)size;
+            // System.Console.WriteLine($"unmap view {((ulong)location):X} {((ulong)size):X}");
 
-            while (location != endLocation)
+            _placeholders.DoForEachSubRange((ulong)location, (ulong)size, (mAddress, mSize) =>
             {
-                bool result = UnmapViewOfFile2(CurrentProcessHandle, location, 2);
-                if (!result)
+                if (!UnmapViewOfFile2(CurrentProcessHandle, (IntPtr)mAddress, 2))
                 {
                     throw new Exception($"UnmapViewOfFile2 failed with error code 0x{GetLastError():X}.");
                 }
-
-                location += PageSize;
-            }
+            });
         }
 
         public static bool Reprotect(IntPtr address, IntPtr size, MemoryPermission permission, bool forView)
         {
             if (forView)
             {
-                ulong uaddress = (ulong)address;
-                ulong usize = (ulong)size;
-                while (usize > 0)
+                bool success = true;
+
+                _placeholders.DoForEachSubRange((ulong)address, (ulong)size, (mAddress, mSize) =>
                 {
-                    if (!VirtualProtect((IntPtr)uaddress, (IntPtr)PageSize, GetProtection(permission), out _))
+                    if (!VirtualProtect((IntPtr)mAddress, (IntPtr)mSize, GetProtection(permission), out _))
                     {
-                        return false;
+                        success = false;
                     }
+                });
 
-                    uaddress += PageSize;
-                    usize -= PageSize;
-                }
-
-                return true;
+                return success;
             }
             else
             {

@@ -9,7 +9,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Optimizations
     {
         public static void RunPass(BasicBlock[] blocks, ShaderConfig config)
         {
-            RunOptimizationPasses(blocks);
+            RunOptimizationPasses(blocks, config);
 
             // Those passes are looking for specific patterns and only needs to run once.
             for (int blkIndex = 0; blkIndex < blocks.Length; blkIndex++)
@@ -20,10 +20,10 @@ namespace Ryujinx.Graphics.Shader.Translation.Optimizations
             }
 
             // Run optimizations one last time to remove any code that is now optimizable after above passes.
-            RunOptimizationPasses(blocks);
+            RunOptimizationPasses(blocks, config);
         }
 
-        private static void RunOptimizationPasses(BasicBlock[] blocks)
+        private static void RunOptimizationPasses(BasicBlock[] blocks, ShaderConfig config)
         {
             bool modified;
 
@@ -58,6 +58,17 @@ namespace Ryujinx.Graphics.Shader.Translation.Optimizations
                         }
 
                         ConstantFolding.RunPass(operation);
+
+                        if (operation.Inst == Instruction.LoadConstant)
+                        {
+                            Operand slot = operation.GetSource(0);
+                            Operand offset = operation.GetSource(1);
+
+                            if (slot.Type == OperandType.Constant && offset.Type == OperandType.Constant)
+                            {
+                                operation.TurnIntoCopy(config.CreateCbuf(slot.Value, offset.Value));
+                            }
+                        }
 
                         Simplification.RunPass(operation);
 

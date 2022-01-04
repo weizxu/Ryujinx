@@ -241,14 +241,24 @@ namespace Ryujinx.Graphics.Shader.Translation.Optimizations
             if ((src1.Type == OperandType.LocalVariable && src2.Type == OperandType.Constant) ||
                 (src2.Type == OperandType.LocalVariable && src1.Type == OperandType.Constant))
             {
+                Operand baseAddr;
+
                 if (src1.Type == OperandType.LocalVariable)
                 {
-                    operation = Utils.FindLastOperation(src1, block).AsgOp as Operation;
+                    baseAddr = Utils.FindLastOperation(src1, block);
                 }
                 else
                 {
-                    operation = Utils.FindLastOperation(src2, block).AsgOp as Operation;
+                    baseAddr = Utils.FindLastOperation(src2, block);
                 }
+
+                var result = GetStorageIndex(config, baseAddr);
+                if (result.Found)
+                {
+                    return result;
+                }
+
+                operation = baseAddr.AsgOp as Operation;
 
                 if (operation == null || operation.Inst != Instruction.Add)
                 {

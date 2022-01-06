@@ -154,10 +154,13 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// <param name="handle">Texture handle</param>
         /// <param name="cbufSlot">Constant buffer slot for the texture handle</param>
         /// <returns>True if the texture is a rectangle texture, false otherwise</returns>
-        public bool QueryIsTextureRectangle(int handle, int cbufSlot = -1)
+        public virtual bool QueryIsTextureRectangle(int handle, int cbufSlot = -1)
         {
-            var descriptor = GetTextureDescriptor(handle, cbufSlot);
+            return QueryIsTextureRectangle(GetTextureDescriptor(handle, cbufSlot));
+        }
 
+        protected static bool QueryIsTextureRectangle(ITextureDescriptor descriptor)
+        {
             TextureTarget target = descriptor.UnpackTextureTarget();
 
             bool is2DTexture = target == TextureTarget.Texture2D ||

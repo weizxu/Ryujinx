@@ -175,6 +175,23 @@ namespace Ryujinx.Graphics.Gpu.Shader
 
                         ReadOnlySpan<GuestShaderCacheEntry> cachedShaderEntries = GuestShaderCacheEntry.Parse(ref guestProgramReadOnlySpan, out GuestShaderCacheHeader fileHeader);
 
+                        ShaderSpecializationState specializationState = new ShaderSpecializationState();
+
+                        for (int i = 0; i < cachedShaderEntries.Length; i++)
+                        {
+                            GuestShaderCacheEntry entry = cachedShaderEntries[i];
+
+                            if (entry == null)
+                            {
+                                continue;
+                            }
+
+                            foreach (GuestTextureDescriptor descriptor in entry.TextureDescriptors.Values)
+                            {
+                                specializationState.RecordTextureCoordNormalized(i, (int)descriptor.Handle, 2, descriptor.IsTextureCoordNormalized);
+                            }
+                        }
+
                         if (cachedShaderEntries[0].Header.Stage == ShaderStage.Compute)
                         {
                             Debug.Assert(cachedShaderEntries.Length == 1);
@@ -210,7 +227,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
 
                                     ShaderCodeHolder shader = new ShaderCodeHolder(program, shaderProgramInfo, code);
 
-                                    _cpProgramsDiskCache.Add(key, new ShaderBundle(hostProgram, shader));
+                                    _cpProgramsDiskCache.Add(key, new ShaderBundle(hostProgram, specializationState, shader));
 
                                     return true;
                                 }
@@ -272,7 +289,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
                                                 }
                                             }
 
-                                            _cpProgramsDiskCache.Add(key, new ShaderBundle(hostProgram, shader));
+                                            _cpProgramsDiskCache.Add(key, new ShaderBundle(hostProgram, specializationState, shader));
 
                                             return true;
                                         });
@@ -452,7 +469,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
                                                 }
                                             }
 
-                                            _gpProgramsDiskCache.Add(key, new ShaderBundle(hostProgram, shaders));
+                                            _gpProgramsDiskCache.Add(key, new ShaderBundle(hostProgram, specializationState, shaders));
 
                                             return true;
                                         });
@@ -461,7 +478,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
                                     }
                                     else
                                     {
-                                        _gpProgramsDiskCache.Add(key, new ShaderBundle(hostProgram, shaders));
+                                        _gpProgramsDiskCache.Add(key, new ShaderBundle(hostProgram, specializationState, shaders));
 
                                         return true;
                                     }
@@ -543,7 +560,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// This automatically translates, compiles and adds the code to the cache if not present.
         /// </remarks>
         /// <param name="channel">GPU channel</param>
-        /// <param name="gas">GPU accessor state</param>
+        /// <param name="gcs">GPU channel state</param>
         /// <param name="gpuVa">GPU virtual address of the binary shader code</param>
         /// <param name="localSizeX">Local group size X of the computer shader</param>
         /// <param name="localSizeY">Local group size Y of the computer shader</param>
@@ -553,7 +570,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// <returns>Compiled compute shader code</returns>
         public ShaderBundle GetComputeShader(
             GpuChannel channel,
-            GpuAccessorState gas,
+            GpuChannelState gcs,
             ulong gpuVa,
             int localSizeX,
             int localSizeY,
@@ -567,7 +584,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
             {
                 foreach (ShaderBundle cachedCpShader in list)
                 {
-                    if (IsShaderEqual(channel.MemoryManager, cachedCpShader, gpuVa))
+                    if (IsShaderEqual(channel, gcs, cachedCpShader, gpuVa))
                     {
                         return cachedCpShader;
                     }
@@ -575,6 +592,8 @@ namespace Ryujinx.Graphics.Gpu.Shader
             }
 
             TranslatorContext[] shaderContexts = new TranslatorContext[1];
+
+            GpuAccessorState gas = new GpuAccessorState(gcs);
 
             shaderContexts[0] = DecodeComputeShader(
                 channel,
@@ -624,7 +643,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
 
                 IProgram hostProgram = _context.Renderer.CreateProgram(new IShader[] { shader.HostShader }, null);
 
-                cpShader = new ShaderBundle(hostProgram, shader);
+                cpShader = new ShaderBundle(hostProgram, gas.SpecializationState, shader);
 
                 if (isShaderCacheEnabled)
                 {
@@ -662,10 +681,10 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// </remarks>
         /// <param name="state">GPU state</param>
         /// <param name="channel">GPU channel</param>
-        /// <param name="gas">GPU accessor state</param>
+        /// <param name="gcs">GPU channel state</param>
         /// <param name="addresses">Addresses of the shaders for each stage</param>
         /// <returns>Compiled graphics shader code</returns>
-        public ShaderBundle GetGraphicsShader(ref ThreedClassState state, GpuChannel channel, GpuAccessorState gas, ShaderAddresses addresses)
+        public ShaderBundle GetGraphicsShader(ref ThreedClassState state, GpuChannel channel, GpuChannelState gcs, ShaderAddresses addresses)
         {
             bool isCached = _gpPrograms.TryGetValue(addresses, out List<ShaderBundle> list);
 
@@ -673,7 +692,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
             {
                 foreach (ShaderBundle cachedGpShaders in list)
                 {
-                    if (IsShaderEqual(channel.MemoryManager, cachedGpShaders, addresses))
+                    if (IsShaderEqual(channel, gcs, cachedGpShaders, addresses))
                     {
                         return cachedGpShaders;
                     }
@@ -692,6 +711,8 @@ namespace Ryujinx.Graphics.Gpu.Shader
             }
 
             TranslationCounts counts = new TranslationCounts();
+
+            GpuAccessorState gas = new GpuAccessorState(gcs);
 
             if (addresses.VertexA != 0)
             {
@@ -767,7 +788,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
 
                 IProgram hostProgram = _context.Renderer.CreateProgram(hostShaders.ToArray(), tfd);
 
-                gpShaders = new ShaderBundle(hostProgram, shaders);
+                gpShaders = new ShaderBundle(hostProgram, gas.SpecializationState, shaders);
 
                 if (isShaderCacheEnabled)
                 {
@@ -829,23 +850,34 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// <summary>
         /// Checks if compute shader code in memory is equal to the cached shader.
         /// </summary>
-        /// <param name="memoryManager">Memory manager used to access the GPU memory where the shader is located</param>
+        /// <param name="channel">GPU channel using the shader</param>
+        /// <param name="channelState">GPU channel state to verify shader compatibility</param>
         /// <param name="cpShader">Cached compute shader</param>
         /// <param name="gpuVa">GPU virtual address of the shader code in memory</param>
         /// <returns>True if the code is different, false otherwise</returns>
-        private static bool IsShaderEqual(MemoryManager memoryManager, ShaderBundle cpShader, ulong gpuVa)
+        private static bool IsShaderEqual(GpuChannel channel, GpuChannelState channelState, ShaderBundle cpShader, ulong gpuVa)
         {
-            return IsShaderEqual(memoryManager, cpShader.Shaders[0], gpuVa);
+            if (IsShaderEqual(channel.MemoryManager, cpShader.Shaders[0], gpuVa))
+            {
+                return cpShader.SpecializationState.MatchesCompute(channel, channelState);
+            }
+
+            return false;
         }
 
         /// <summary>
         /// Checks if graphics shader code from all stages in memory are equal to the cached shaders.
         /// </summary>
-        /// <param name="memoryManager">Memory manager used to access the GPU memory where the shader is located</param>
+        /// <param name="channel">GPU channel using the shader</param>
+        /// <param name="channelState">GPU channel state to verify shader compatibility</param>
         /// <param name="gpShaders">Cached graphics shaders</param>
         /// <param name="addresses">GPU virtual addresses of all enabled shader stages</param>
         /// <returns>True if the code is different, false otherwise</returns>
-        private static bool IsShaderEqual(MemoryManager memoryManager, ShaderBundle gpShaders, ShaderAddresses addresses)
+        private static bool IsShaderEqual(
+            GpuChannel channel,
+            GpuChannelState channelState,
+            ShaderBundle gpShaders,
+            ShaderAddresses addresses)
         {
             for (int stage = 0; stage < gpShaders.Shaders.Length; stage++)
             {
@@ -862,13 +894,13 @@ namespace Ryujinx.Graphics.Gpu.Shader
                     case 4: gpuVa = addresses.Fragment;       break;
                 }
 
-                if (!IsShaderEqual(memoryManager, shader, gpuVa, addresses.VertexA))
+                if (!IsShaderEqual(channel.MemoryManager, shader, gpuVa, addresses.VertexA))
                 {
                     return false;
                 }
             }
 
-            return true;
+            return gpShaders.SpecializationState.MatchesGraphics(channel, channelState);
         }
 
         /// <summary>

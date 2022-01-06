@@ -29,6 +29,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         private readonly StateUpdateTracker<ThreedClassState> _updateTracker;
 
         private readonly ShaderProgramInfo[] _currentProgramInfo;
+        private ShaderSpecializationState _shaderSpecState;
 
         private bool _vtgWritesRtLayer;
         private byte _vsClipDistancesWritten;
@@ -190,6 +191,17 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Update()
         {
+            // If any state that the shader depends on changed,
+            // then we may need to compile/bind a different version
+            // of the shader for the new state.
+            if (_shaderSpecState != null)
+            {
+                if (!_shaderSpecState.MatchesGraphics(_channel, GetGpuChannelState()))
+                {
+                    ForceShaderUpdate();
+                }
+            }
+
             // The vertex buffer size is calculated using a different
             // method when doing indexed draws, so we need to make sure
             // to update the vertex buffers if we are doing a regular
@@ -1008,15 +1020,11 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
                 addressesArray[index] = baseAddress + shader.Offset;
             }
 
-            GpuAccessorState gas = new GpuAccessorState(
-                _state.State.TexturePoolState.Address.Pack(),
-                _state.State.TexturePoolState.MaximumId,
-                (int)_state.State.TextureBufferIndex,
-                _state.State.EarlyZForce,
-                _drawState.Topology,
-                _state.State.TessMode);
+            GpuChannelState gcs = GetGpuChannelState();
 
-            ShaderBundle gs = _channel.MemoryManager.Physical.ShaderCache.GetGraphicsShader(ref _state.State, _channel, gas, addresses);
+            ShaderBundle gs = _channel.MemoryManager.Physical.ShaderCache.GetGraphicsShader(ref _state.State, _channel, gcs, addresses);
+
+            _shaderSpecState = gs.SpecializationState;
 
             byte oldVsClipDistancesWritten = _vsClipDistancesWritten;
 
@@ -1088,6 +1096,21 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
             }
 
             _context.Renderer.Pipeline.SetProgram(gs.HostProgram);
+        }
+
+        /// <summary>
+        /// Gets the current GPU channel state for shader creation or compatibility verification.
+        /// </summary>
+        /// <returns>Current GPU channel state</returns>
+        private GpuChannelState GetGpuChannelState()
+        {
+            return new GpuChannelState(
+                _state.State.TexturePoolState.Address.Pack(),
+                _state.State.TexturePoolState.MaximumId,
+                (int)_state.State.TextureBufferIndex,
+                _state.State.EarlyZForce,
+                _drawState.Topology,
+                _state.State.TessMode);
         }
 
         /// <summary>

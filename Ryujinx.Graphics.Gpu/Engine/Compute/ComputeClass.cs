@@ -124,7 +124,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Compute
             ulong samplerPoolGpuVa = ((ulong)_state.State.SetTexSamplerPoolAOffsetUpper << 32) | _state.State.SetTexSamplerPoolB;
             ulong texturePoolGpuVa = ((ulong)_state.State.SetTexHeaderPoolAOffsetUpper << 32) | _state.State.SetTexHeaderPoolB;
 
-            GpuAccessorState gas = new GpuAccessorState(
+            GpuChannelState gcs = new GpuChannelState(
                 texturePoolGpuVa,
                 _state.State.SetTexHeaderPoolCMaximumIndex,
                 _state.State.SetBindlessTextureConstantBufferSlotSelect,
@@ -134,7 +134,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Compute
 
             ShaderBundle cs = memoryManager.Physical.ShaderCache.GetComputeShader(
                 _channel,
-                gas,
+                gcs,
                 shaderGpuVa,
                 qmd.CtaThreadDimension0,
                 qmd.CtaThreadDimension1,

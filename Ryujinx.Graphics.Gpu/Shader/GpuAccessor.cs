@@ -155,7 +155,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// <returns>Current primitive topology</returns>
         public InputTopology QueryPrimitiveTopology()
         {
-            return _state.Topology switch
+            return _state.ChannelState.Topology switch
             {
                 PrimitiveTopology.Points => InputTopology.Points,
                 PrimitiveTopology.Lines or
@@ -168,7 +168,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
                 PrimitiveTopology.TriangleFan => InputTopology.Triangles,
                 PrimitiveTopology.TrianglesAdjacency or
                 PrimitiveTopology.TriangleStripAdjacency => InputTopology.TrianglesAdjacency,
-                PrimitiveTopology.Patches => _state.TessellationMode.UnpackPatchType() == TessPatchType.Isolines
+                PrimitiveTopology.Patches => _state.ChannelState.TessellationMode.UnpackPatchType() == TessPatchType.Isolines
                     ? InputTopology.Lines
                     : InputTopology.Triangles,
                 _ => InputTopology.Points
@@ -179,19 +179,19 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// Queries the tessellation evaluation shader primitive winding order.
         /// </summary>
         /// <returns>True if the primitive winding order is clockwise, false if counter-clockwise</returns>
-        public bool QueryTessCw() => _state.TessellationMode.UnpackCw();
+        public bool QueryTessCw() => _state.ChannelState.TessellationMode.UnpackCw();
 
         /// <summary>
         /// Queries the tessellation evaluation shader abstract patch type.
         /// </summary>
         /// <returns>Abstract patch type</returns>
-        public TessPatchType QueryTessPatchType() => _state.TessellationMode.UnpackPatchType();
+        public TessPatchType QueryTessPatchType() => _state.ChannelState.TessellationMode.UnpackPatchType();
 
         /// <summary>
         /// Queries the tessellation evaluation shader spacing between tessellated vertices of the patch.
         /// </summary>
         /// <returns>Spacing between tessellated vertices of the patch</returns>
-        public TessSpacing QueryTessSpacing() => _state.TessellationMode.UnpackSpacing();
+        public TessSpacing QueryTessSpacing() => _state.ChannelState.TessellationMode.UnpackSpacing();
 
         /// <summary>
         /// Gets the texture descriptor for a given texture on the pool.
@@ -204,22 +204,35 @@ namespace Ryujinx.Graphics.Gpu.Shader
             if (_compute)
             {
                 return _channel.TextureManager.GetComputeTextureDescriptor(
-                    _state.TexturePoolGpuVa,
-                    _state.TextureBufferIndex,
-                    _state.TexturePoolMaximumId,
+                    _state.ChannelState.TexturePoolGpuVa,
+                    _state.ChannelState.TextureBufferIndex,
+                    _state.ChannelState.TexturePoolMaximumId,
                     handle,
                     cbufSlot);
             }
             else
             {
                 return _channel.TextureManager.GetGraphicsTextureDescriptor(
-                    _state.TexturePoolGpuVa,
-                    _state.TextureBufferIndex,
-                    _state.TexturePoolMaximumId,
+                    _state.ChannelState.TexturePoolGpuVa,
+                    _state.ChannelState.TextureBufferIndex,
+                    _state.ChannelState.TexturePoolMaximumId,
                     _stageIndex,
                     handle,
                     cbufSlot);
             }
+        }
+
+        public override bool QueryIsTextureRectangle(int handle, int cbufSlot = -1)
+        {
+            var descriptor = GetTextureDescriptor(handle, cbufSlot);
+
+            if (cbufSlot == -1)
+            {
+                cbufSlot = _state.ChannelState.TextureBufferIndex;
+            }
+
+            _state.SpecializationState?.RecordTextureCoordNormalized(_stageIndex, handle, cbufSlot, descriptor.UnpackTextureCoordNormalized());
+            return QueryIsTextureRectangle(descriptor);
         }
 
         /// <summary>
@@ -228,7 +241,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// <returns>True if early depth testing is forced</returns>
         public bool QueryEarlyZForce()
         {
-            return _state.EarlyZForce;
+            return _state.ChannelState.EarlyZForce;
         }
     }
 }

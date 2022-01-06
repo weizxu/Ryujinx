@@ -14,6 +14,8 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// </summary>
         public IProgram HostProgram { get; }
 
+        public ShaderSpecializationState SpecializationState { get; }
+
         /// <summary>
         /// Compiled shader for each shader stage.
         /// </summary>
@@ -24,9 +26,10 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// </summary>
         /// <param name="hostProgram">Host program with all the shader stages</param>
         /// <param name="shaders">Shaders</param>
-        public ShaderBundle(IProgram hostProgram, params ShaderCodeHolder[] shaders)
+        public ShaderBundle(IProgram hostProgram, ShaderSpecializationState specializationState, params ShaderCodeHolder[] shaders)
         {
             HostProgram = hostProgram;
+            SpecializationState = specializationState;
             Shaders = shaders;
         }
 

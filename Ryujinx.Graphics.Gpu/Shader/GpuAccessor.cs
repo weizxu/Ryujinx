@@ -225,12 +225,6 @@ namespace Ryujinx.Graphics.Gpu.Shader
         public override bool QueryIsTextureRectangle(int handle, int cbufSlot = -1)
         {
             var descriptor = GetTextureDescriptor(handle, cbufSlot);
-
-            if (cbufSlot == -1)
-            {
-                cbufSlot = _state.ChannelState.TextureBufferIndex;
-            }
-
             _state.SpecializationState?.RecordTextureCoordNormalized(_stageIndex, handle, cbufSlot, descriptor.UnpackTextureCoordNormalized());
             return QueryIsTextureRectangle(descriptor);
         }

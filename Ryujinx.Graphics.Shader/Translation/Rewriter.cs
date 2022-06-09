@@ -30,8 +30,6 @@ namespace Ryujinx.Graphics.Shader.Translation
 
                     if (operation is TextureOperation texOp)
                     {
-                        LinkedListNode<INode> texNode = node;
-
                         if (texOp.Inst == Instruction.TextureSample)
                         {
                             node = RewriteTextureSample(node, config);
@@ -42,7 +40,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                             }
                         }
 
-                        TurnIntoBindlessIfExceeding(texNode, config);
+                        TurnIntoBindlessIfExceeding(node, config);
                     }
                 }
             }
@@ -168,7 +166,7 @@ namespace Ryujinx.Graphics.Shader.Translation
 
             bool isBindless = (texOp.Flags & TextureFlags.Bindless) != 0;
 
-            bool isCoordNormalized = !isBindless && config.GpuAccessor.QueryTextureCoordNormalized(texOp.Handle, texOp.CbufSlot);
+            bool isCoordNormalized = isBindless || config.GpuAccessor.QueryTextureCoordNormalized(texOp.Handle, texOp.CbufSlot);
 
             if (!hasInvalidOffset && isCoordNormalized)
             {

@@ -532,7 +532,10 @@ namespace Ryujinx.Graphics.Shader.Translation
 
         private static void TurnIntoBindlessIfExceeding(LinkedListNode<INode> node, ShaderConfig config)
         {
-            TextureOperation texOp = (TextureOperation)node.Value;
+            if (!(node.Value is TextureOperation texOp))
+            {
+                return;
+            }
 
             // If it's already bindless, then we have nothing to do.
             if (texOp.Flags.HasFlag(TextureFlags.Bindless))

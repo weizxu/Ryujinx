@@ -78,6 +78,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 regionHandle.ForceDirty();
             }
         }
+
         public IRegionHandle GetHandle()
         {
             return _cpuRegionHandles[0].GetHandle();

@@ -538,14 +538,14 @@ namespace Ryujinx.Graphics.Gpu.Memory
             }
             else if (range.Count != 0)
             {
-                System.Console.WriteLine("find " + range);
+                // System.Console.WriteLine("find " + range);
                 int overlapCount = _discontinuousBuffers.FindOverlaps(range, ref _bufferOverlaps);
 
                 for (int index = 0; index < overlapCount; index++)
                 {
                     Buffer overlap = _bufferOverlaps[index];
 
-                    System.Console.WriteLine("found overlap " + overlap.Range);
+                    // System.Console.WriteLine("found overlap " + overlap.Range);
 
                     if (overlap.Range.Contains(range))
                     {

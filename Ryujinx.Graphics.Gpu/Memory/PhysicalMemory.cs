@@ -339,18 +339,32 @@ namespace Ryujinx.Graphics.Gpu.Memory
         public GpuMultiRegionHandle BeginGranularTracking(MultiRange range, IEnumerable<IRegionHandle> handles = null, ulong granularity = 4096)
         {
             var cpuRegionHandles = new CpuMultiRegionHandle[range.Count];
+            int handlesCount = 0;
 
             for (int i = 0; i < range.Count; i++)
             {
                 var currentRange = range.GetSubRange(i);
-                var handlesForRange = handles;
 
-                if (handles != null && range.Count > 1)
+                if (currentRange.Address != MemoryManager.PteUnmapped)
                 {
-                    handlesForRange = handles.Where(x => x.Address >= currentRange.Address && x.EndAddress <= currentRange.EndAddress);
-                }
+                    var handlesForRange = handles;
 
-                cpuRegionHandles[i] = _cpuMemory.BeginGranularTracking(currentRange.Address, currentRange.Size, handlesForRange, granularity);
+                    if (handles != null && range.Count > 1)
+                    {
+                        handlesForRange = handles.Where(x => x.Address >= currentRange.Address && x.EndAddress <= currentRange.EndAddress);
+                    }
+
+                    cpuRegionHandles[handlesCount++] = _cpuMemory.BeginGranularTracking(
+                        currentRange.Address,
+                        currentRange.Size,
+                        handlesForRange,
+                        granularity);
+                }
+            }
+
+            if (handlesCount != range.Count)
+            {
+                Array.Resize(ref cpuRegionHandles, handlesCount);
             }
 
             return new GpuMultiRegionHandle(cpuRegionHandles);

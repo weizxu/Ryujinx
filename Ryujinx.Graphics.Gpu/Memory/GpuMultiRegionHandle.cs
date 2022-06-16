@@ -124,7 +124,11 @@ namespace Ryujinx.Graphics.Gpu.Memory
             for (int index = 0; index < range.Count; index++)
             {
                 MemoryRange subRange = range.GetSubRange(index);
-                QueryModified(subRange.Address, subRange.Size, modifiedAction);
+
+                if (subRange.Address != MemoryManager.PteUnmapped)
+                {
+                    QueryModified(subRange.Address, subRange.Size, modifiedAction);
+                }
             }
         }
 
@@ -165,7 +169,11 @@ namespace Ryujinx.Graphics.Gpu.Memory
             for (int index = 0; index < range.Count; index++)
             {
                 MemoryRange subRange = range.GetSubRange(index);
-                QueryModified(subRange.Address, subRange.Size, modifiedAction, sequenceNumber);
+
+                if (subRange.Address != MemoryManager.PteUnmapped)
+                {
+                    QueryModified(subRange.Address, subRange.Size, modifiedAction, sequenceNumber);
+                }
             }
         }
 
@@ -216,7 +224,11 @@ namespace Ryujinx.Graphics.Gpu.Memory
             for (int index = 0; index < range.Count; index++)
             {
                 MemoryRange subRange = range.GetSubRange(index);
-                RegisterPreciseAction(subRange.Address, subRange.Size, action);
+
+                if (subRange.Address != MemoryManager.PteUnmapped)
+                {
+                    RegisterPreciseAction(subRange.Address, subRange.Size, action);
+                }
             }
         }
 

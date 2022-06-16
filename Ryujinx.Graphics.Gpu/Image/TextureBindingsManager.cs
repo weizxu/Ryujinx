@@ -543,7 +543,10 @@ namespace Ryujinx.Graphics.Gpu.Image
 
             TexturePool texturePool = _texturePoolCache.FindOrCreate(_channel, poolAddress, maximumId);
 
-            return texturePool.GetDescriptor(textureId);
+            // System.Console.WriteLine($"get tex ID 0x{textureId:X} packed 0x{packedId:X} handle 0x{handle:X} slots 0x{cbufSlot:X}");
+
+            texturePool.TryGetDescriptor(textureId, out TextureDescriptor descriptor);
+            return descriptor;
         }
 
         /// <summary>
@@ -573,13 +576,23 @@ namespace Ryujinx.Graphics.Gpu.Image
             // turn that into a regular texture access and produce those special handles with values on the higher 16 bits.
             if (handleType != TextureHandleType.CombinedSampler)
             {
-                ulong samplerBufferAddress = _isCompute
-                    ? _channel.BufferManager.GetComputeUniformBufferAddress(samplerBufferIndex)
-                    : _channel.BufferManager.GetGraphicsUniformBufferAddress(stageIndex, samplerBufferIndex);
+                int samplerHandle;
 
-                int samplerHandle = _channel.MemoryManager.Physical.Read<int>(samplerBufferAddress + (uint)samplerWordOffset * 4);
+                if (handleType != TextureHandleType.SeparateConstantSamplerHandle)
+                {
+                    ulong samplerBufferAddress = _isCompute
+                        ? _channel.BufferManager.GetComputeUniformBufferAddress(samplerBufferIndex)
+                        : _channel.BufferManager.GetGraphicsUniformBufferAddress(stageIndex, samplerBufferIndex);
 
-                if (handleType == TextureHandleType.SeparateSamplerId)
+                    samplerHandle = _channel.MemoryManager.Physical.Read<int>(samplerBufferAddress + (uint)samplerWordOffset * 4);
+                }
+                else
+                {
+                    samplerHandle = samplerWordOffset;
+                }
+
+                if (handleType == TextureHandleType.SeparateSamplerId ||
+                    handleType == TextureHandleType.SeparateConstantSamplerHandle)
                 {
                     samplerHandle <<= 20;
                 }

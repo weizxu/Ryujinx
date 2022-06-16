@@ -80,6 +80,26 @@ namespace Ryujinx.Graphics.Gpu.Image
         }
 
         /// <summary>
+        /// Gets the descriptor for a given ID.
+        /// </summary>
+        /// <param name="id">ID of the descriptor. This is effectively a zero-based index</param>
+        /// <param name="descriptor">The descriptor</param>
+        /// <returns>True if it was possible to read the descriptor from memory, false otherwise</returns>
+        public bool TryGetDescriptor(int id, out T2 descriptor)
+        {
+            ulong address = Address + (ulong)id * DescriptorSize;
+
+            if (PhysicalMemory.IsMapped(address))
+            {
+                descriptor = PhysicalMemory.Read<T2>(address);
+                return true;
+            }
+
+            descriptor = default;
+            return false;
+        }
+
+        /// <summary>
         /// Gets the GPU resource with the given ID.
         /// </summary>
         /// <param name="id">ID of the resource. This is effectively a zero-based index</param>

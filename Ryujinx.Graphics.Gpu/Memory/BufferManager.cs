@@ -2,7 +2,6 @@
 using Ryujinx.Graphics.GAL;
 using Ryujinx.Graphics.Gpu.Image;
 using Ryujinx.Graphics.Shader;
-using Ryujinx.Memory.Range;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -60,9 +59,9 @@ namespace Ryujinx.Graphics.Gpu.Memory
             /// <param name="index">Buffer slot</param>
             /// <param name="range">Region where the data is located</param>
             /// <param name="flags">Buffer usage flags</param>
-            public void SetBounds(int index, MultiRange range, BufferUsageFlags flags = BufferUsageFlags.None)
+            public void SetBounds(int index, ulong gpuVa, ulong size, BufferUsageFlags flags = BufferUsageFlags.None)
             {
-                Buffers[index] = new BufferBounds(range, flags);
+                Buffers[index] = new BufferBounds(gpuVa, size, flags);
             }
 
             /// <summary>
@@ -137,9 +136,10 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="type">Type of each index buffer element</param>
         public void SetIndexBuffer(ulong gpuVa, ulong size, IndexType type)
         {
-            MultiRange range = _channel.MemoryManager.Physical.BufferCache.TranslateAndCreateBuffer(_channel.MemoryManager, gpuVa, size);
+            _channel.MemoryManager.VirtualBufferCache.CreateBuffer(gpuVa, size);
 
-            _indexBuffer.Range = range;
+            _indexBuffer.GpuVa = gpuVa;
+            _indexBuffer.Size = size;
             _indexBuffer.Type = type;
 
             _indexBufferDirty = true;
@@ -167,15 +167,18 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="divisor">Vertex divisor of the buffer, for instanced draws</param>
         public void SetVertexBuffer(int index, ulong gpuVa, ulong size, int stride, int divisor)
         {
-            MultiRange range = _channel.MemoryManager.Physical.BufferCache.TranslateAndCreateBuffer(_channel.MemoryManager, gpuVa, size);
+            _channel.MemoryManager.VirtualBufferCache.CreateBuffer(gpuVa, size);
 
-            _vertexBuffers[index].Range = range;
-            _vertexBuffers[index].Stride = stride;
-            _vertexBuffers[index].Divisor = divisor;
+            ref var vb = ref _vertexBuffers[index];
+
+            vb.GpuVa = gpuVa;
+            vb.Size = size;
+            vb.Stride = stride;
+            vb.Divisor = divisor;
 
             _vertexBuffersDirty = true;
 
-            if (!range.IsNull)
+            if (gpuVa != 0)
             {
                 _vertexBuffersEnableMask |= 1u << index;
             }
@@ -194,9 +197,9 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="size">Size in bytes of the transform feedback buffer</param>
         public void SetTransformFeedbackBuffer(int index, ulong gpuVa, ulong size)
         {
-            MultiRange range = _channel.MemoryManager.Physical.BufferCache.TranslateAndCreateBuffer(_channel.MemoryManager, gpuVa, size);
+            _channel.MemoryManager.VirtualBufferCache.CreateBuffer(gpuVa, size);
 
-            _transformFeedbackBuffers[index] = new BufferBounds(range);
+            _transformFeedbackBuffers[index] = new BufferBounds(gpuVa, size);
             _transformFeedbackBuffersDirty = true;
         }
 
@@ -214,9 +217,9 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
             gpuVa = BitUtils.AlignDown(gpuVa, _context.Capabilities.StorageBufferOffsetAlignment);
 
-            MultiRange range = _channel.MemoryManager.Physical.BufferCache.TranslateAndCreateBuffer(_channel.MemoryManager, gpuVa, size);
+            _channel.MemoryManager.VirtualBufferCache.CreateBuffer(gpuVa, size);
 
-            _cpStorageBuffers.SetBounds(index, range, flags);
+            _cpStorageBuffers.SetBounds(index, gpuVa, size, flags);
         }
 
         /// <summary>
@@ -234,14 +237,15 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
             gpuVa = BitUtils.AlignDown(gpuVa, _context.Capabilities.StorageBufferOffsetAlignment);
 
-            MultiRange range = _channel.MemoryManager.Physical.BufferCache.TranslateAndCreateBuffer(_channel.MemoryManager, gpuVa, size);
+            _channel.MemoryManager.VirtualBufferCache.CreateBuffer(gpuVa, size);
 
-            if (!_gpStorageBuffers[stage].Buffers[index].Range.Equals(range))
+            if (_gpStorageBuffers[stage].Buffers[index].GpuVa != gpuVa ||
+                _gpStorageBuffers[stage].Buffers[index].Size != size)
             {
                 _gpStorageBuffersDirty = true;
             }
 
-            _gpStorageBuffers[stage].SetBounds(index, range, flags);
+            _gpStorageBuffers[stage].SetBounds(index, gpuVa, size, flags);
         }
 
         /// <summary>
@@ -253,9 +257,9 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="size">Size in bytes of the storage buffer</param>
         public void SetComputeUniformBuffer(int index, ulong gpuVa, ulong size)
         {
-            MultiRange range = _channel.MemoryManager.Physical.BufferCache.TranslateAndCreateBuffer(_channel.MemoryManager, gpuVa, size);
+            _channel.MemoryManager.VirtualBufferCache.CreateBuffer(gpuVa, size);
 
-            _cpUniformBuffers.SetBounds(index, range);
+            _cpUniformBuffers.SetBounds(index, gpuVa, size);
         }
 
         /// <summary>
@@ -268,9 +272,9 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="size">Size in bytes of the storage buffer</param>
         public void SetGraphicsUniformBuffer(int stage, int index, ulong gpuVa, ulong size)
         {
-            MultiRange range = _channel.MemoryManager.Physical.BufferCache.TranslateAndCreateBuffer(_channel.MemoryManager, gpuVa, size);
+            _channel.MemoryManager.VirtualBufferCache.CreateBuffer(gpuVa, size);
 
-            _gpUniformBuffers[stage].SetBounds(index, range);
+            _gpUniformBuffers[stage].SetBounds(index, gpuVa, size);
             _gpUniformBuffersDirty = true;
         }
 
@@ -325,7 +329,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
             for (int i = 0; i < _cpUniformBuffers.Buffers.Length; i++)
             {
-                if (!_cpUniformBuffers.Buffers[i].Range.IsNull)
+                if (_cpUniformBuffers.Buffers[i].GpuVa != 0)
                 {
                     mask |= 1u << i;
                 }
@@ -345,7 +349,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
             for (int i = 0; i < _gpUniformBuffers[stage].Buffers.Length; i++)
             {
-                if (!_gpUniformBuffers[stage].Buffers[i].Range.IsNull)
+                if (_gpUniformBuffers[stage].Buffers[i].GpuVa != 0)
                 {
                     mask |= 1u << i;
                 }
@@ -361,7 +365,18 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <returns>The uniform buffer address, or an undefined value if the buffer is not currently bound</returns>
         public ulong GetComputeUniformBufferAddress(int index)
         {
-            return _cpUniformBuffers.Buffers[index].Range.GetSubRange(0).Address; // FIXME
+            if (_cpUniformBuffers.Buffers[index].GpuVa == 0)
+            {
+                return 0;
+            }
+
+            ulong address = _channel.MemoryManager.Translate(_cpUniformBuffers.Buffers[index].GpuVa); // FIXME
+            if (address == MemoryManager.PteUnmapped)
+            {
+                return 0;
+            }
+
+            return address;
         }
 
         /// <summary>
@@ -372,7 +387,18 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <returns>The uniform buffer address, or an undefined value if the buffer is not currently bound</returns>
         public ulong GetGraphicsUniformBufferAddress(int stage, int index)
         {
-            return _gpUniformBuffers[stage].Buffers[index].Range.GetSubRange(0).Address; // FIXME
+            if (_gpUniformBuffers[stage].Buffers[index].GpuVa == 0)
+            {
+                return 0;
+            }
+
+            ulong address = _channel.MemoryManager.Translate(_gpUniformBuffers[stage].Buffers[index].GpuVa); // FIXME
+            if (address == MemoryManager.PteUnmapped)
+            {
+                return 0;
+            }
+
+            return address;
         }
 
         /// <summary>
@@ -381,7 +407,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// </summary>
         public void CommitComputeBindings()
         {
-            var bufferCache = _channel.MemoryManager.Physical.BufferCache;
+            var bufferCache = _channel.MemoryManager.VirtualBufferCache;
 
             BindBuffers(bufferCache, _cpStorageBuffers, isStorage: true);
             BindBuffers(bufferCache, _cpUniformBuffers, isStorage: false);
@@ -402,7 +428,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 foreach (var binding in _bufferTextures)
                 {
                     var isStore = binding.BindingInfo.Flags.HasFlag(TextureUsageFlags.ImageStore);
-                    var range = _channel.MemoryManager.Physical.BufferCache.GetBufferRange(binding.Range, isStore);
+                    var range = _channel.MemoryManager.VirtualBufferCache.GetBufferRange(binding.GpuVa, binding.Size, isStore);
                     binding.Texture.SetStorage(range);
 
                     // The texture must be rebound to use the new storage if it was updated.
@@ -427,22 +453,22 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// </summary>
         public void CommitGraphicsBindings()
         {
-            var bufferCache = _channel.MemoryManager.Physical.BufferCache;
+            var bufferCache = _channel.MemoryManager.VirtualBufferCache;
 
             if (_indexBufferDirty || _rebind)
             {
                 _indexBufferDirty = false;
 
-                if (!_indexBuffer.Range.IsNull)
+                if (_indexBuffer.GpuVa != 0)
                 {
-                    BufferRange buffer = bufferCache.GetBufferRange(_indexBuffer.Range);
+                    BufferRange buffer = bufferCache.GetBufferRange(_indexBuffer.GpuVa, _indexBuffer.Size);
 
                     _context.Renderer.Pipeline.SetIndexBuffer(buffer, _indexBuffer.Type);
                 }
             }
-            else if (!_indexBuffer.Range.IsNull)
+            else if (_indexBuffer.GpuVa != 0)
             {
-                bufferCache.SynchronizeBufferRange(_indexBuffer.Range);
+                bufferCache.SynchronizeBufferRange(_indexBuffer.GpuVa, _indexBuffer.Size);
             }
 
             uint vbEnableMask = _vertexBuffersEnableMask;
@@ -457,12 +483,12 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 {
                     VertexBuffer vb = _vertexBuffers[index];
 
-                    if (vb.Range.IsNull)
+                    if (vb.GpuVa == 0)
                     {
                         continue;
                     }
 
-                    BufferRange buffer = bufferCache.GetBufferRange(vb.Range);
+                    BufferRange buffer = bufferCache.GetBufferRange(vb.GpuVa, vb.Size);
 
                     vertexBuffers[index] = new VertexBufferDescriptor(buffer, vb.Stride, vb.Divisor);
                 }
@@ -475,12 +501,12 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 {
                     VertexBuffer vb = _vertexBuffers[index];
 
-                    if (vb.Range.IsNull)
+                    if (vb.GpuVa == 0)
                     {
                         continue;
                     }
 
-                    bufferCache.SynchronizeBufferRange(vb.Range);
+                    bufferCache.SynchronizeBufferRange(vb.GpuVa, vb.Size);
                 }
             }
 
@@ -494,13 +520,13 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 {
                     BufferBounds tfb = _transformFeedbackBuffers[index];
 
-                    if (tfb.Range.IsNull)
+                    if (tfb.GpuVa == 0)
                     {
                         tfbs[index] = BufferRange.Empty;
                         continue;
                     }
 
-                    tfbs[index] = bufferCache.GetBufferRange(tfb.Range, write: true);
+                    tfbs[index] = bufferCache.GetBufferRange(tfb.GpuVa, tfb.Size, write: true);
                 }
 
                 _context.Renderer.Pipeline.SetTransformFeedbackBuffers(tfbs);
@@ -511,12 +537,12 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 {
                     BufferBounds tfb = _transformFeedbackBuffers[index];
 
-                    if (tfb.Range.IsNull)
+                    if (tfb.GpuVa == 0)
                     {
                         continue;
                     }
 
-                    bufferCache.SynchronizeBufferRange(tfb.Range);
+                    bufferCache.SynchronizeBufferRange(tfb.GpuVa, tfb.Size);
                 }
             }
 
@@ -554,7 +580,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="bindings">Buffer memory ranges to bind</param>
         /// <param name="isStorage">True to bind as storage buffer, false to bind as uniform buffer</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void BindBuffers(BufferCache bufferCache, BuffersPerStage[] bindings, bool isStorage)
+        private void BindBuffers(VirtualBufferCache bufferCache, BuffersPerStage[] bindings, bool isStorage)
         {
             int rangesFirst = 0;
             int rangesCount = 0;
@@ -571,12 +597,12 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
                     BufferBounds bounds = buffers.Buffers[bindingInfo.Slot];
 
-                    if (!bounds.Range.IsNull)
+                    if (bounds.GpuVa != 0)
                     {
                         var isWrite = bounds.Flags.HasFlag(BufferUsageFlags.Write);
                         var range = isStorage
-                            ? bufferCache.GetBufferRangeTillEnd(bounds.Range, isWrite)
-                            : bufferCache.GetBufferRange(bounds.Range);
+                            ? bufferCache.GetBufferRangeTillEnd(bounds.GpuVa, bounds.Size, isWrite)
+                            : bufferCache.GetBufferRange(bounds.GpuVa, bounds.Size);
 
                         if (rangesCount == 0)
                         {
@@ -607,7 +633,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="buffers">Buffer memory ranges to bind</param>
         /// <param name="isStorage">True to bind as storage buffer, false to bind as uniform buffer</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void BindBuffers(BufferCache bufferCache, BuffersPerStage buffers, bool isStorage)
+        private void BindBuffers(VirtualBufferCache bufferCache, BuffersPerStage buffers, bool isStorage)
         {
             int rangesFirst = 0;
             int rangesCount = 0;
@@ -620,12 +646,12 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
                 BufferBounds bounds = buffers.Buffers[bindingInfo.Slot];
 
-                if (!bounds.Range.IsNull)
+                if (bounds.GpuVa != 0)
                 {
                     var isWrite = bounds.Flags.HasFlag(BufferUsageFlags.Write);
                     var range = isStorage
-                        ? bufferCache.GetBufferRangeTillEnd(bounds.Range, isWrite)
-                        : bufferCache.GetBufferRange(bounds.Range);
+                        ? bufferCache.GetBufferRangeTillEnd(bounds.GpuVa, bounds.Size, isWrite)
+                        : bufferCache.GetBufferRange(bounds.GpuVa, bounds.Size);
 
                     if (rangesCount == 0)
                     {
@@ -684,12 +710,12 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
                     BufferBounds bounds = buffers.Buffers[binding.Slot];
 
-                    if (bounds.Range.IsNull)
+                    if (bounds.GpuVa == 0)
                     {
                         continue;
                     }
 
-                    _channel.MemoryManager.Physical.BufferCache.SynchronizeBufferRange(bounds.Range);
+                    _channel.MemoryManager.VirtualBufferCache.SynchronizeBufferRange(bounds.GpuVa, bounds.Size);
                 }
             }
         }
@@ -702,11 +728,11 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="bindingInfo">Binding info for the buffer texture</param>
         /// <param name="format">Format of the buffer texture</param>
         /// <param name="isImage">Whether the binding is for an image or a sampler</param>
-        public void SetBufferTextureStorage(ITexture texture, MultiRange range, TextureBindingInfo bindingInfo, Format format, bool isImage)
+        public void SetBufferTextureStorage(ITexture texture, ulong gpuVa, ulong size, TextureBindingInfo bindingInfo, Format format, bool isImage)
         {
-            _channel.MemoryManager.Physical.BufferCache.CreateBuffer(range);
+            _channel.MemoryManager.VirtualBufferCache.CreateBuffer(gpuVa, size);
 
-            _bufferTextures.Add(new BufferTextureBinding(texture, range, bindingInfo, format, isImage));
+            _bufferTextures.Add(new BufferTextureBinding(texture, gpuVa, size, bindingInfo, format, isImage));
         }
 
         /// <summary>

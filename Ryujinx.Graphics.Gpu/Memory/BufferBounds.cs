@@ -9,9 +9,14 @@ namespace Ryujinx.Graphics.Gpu.Memory
     struct BufferBounds
     {
         /// <summary>
-        /// Region where the data is located.
+        /// GPU virtual address of the buffer binding.
         /// </summary>
-        public MultiRange Range { get; }
+        public ulong GpuVa { get; }
+
+        /// <summary>
+        /// Size of the buffer binding in bytes.
+        /// </summary>
+        public ulong Size { get; }
 
         /// <summary>
         /// Buffer usage flags.
@@ -21,11 +26,13 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <summary>
         /// Creates a new buffer region.
         /// </summary>
-        /// <param name="range">Region where the data is located</param>
+        /// <param name="gpuVa">GPU virtual address of the buffer binding</param>
+        /// <param name="size">Size of the buffer binding in bytes</param>
         /// <param name="flags">Buffer usage flags</param>
-        public BufferBounds(MultiRange range, BufferUsageFlags flags = BufferUsageFlags.None)
+        public BufferBounds(ulong gpuVa, ulong size, BufferUsageFlags flags = BufferUsageFlags.None)
         {
-            Range = range;
+            GpuVa = gpuVa;
+            Size = size;
             Flags = flags;
         }
     }

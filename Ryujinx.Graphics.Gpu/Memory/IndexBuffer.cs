@@ -1,6 +1,5 @@
 
 using Ryujinx.Graphics.GAL;
-using Ryujinx.Memory.Range;
 
 namespace Ryujinx.Graphics.Gpu.Memory
 {
@@ -9,7 +8,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
     /// </summary>
     struct IndexBuffer
     {
-        public MultiRange Range;
+        public ulong GpuVa;
+        public ulong Size;
         public IndexType Type;
     }
 }

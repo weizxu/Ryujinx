@@ -3,6 +3,7 @@ using Ryujinx.Memory.Range;
 using Ryujinx.Memory.Tracking;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace Ryujinx.Graphics.Gpu.Memory
@@ -10,7 +11,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
     /// <summary>
     /// Buffer, used to store vertex and index data, uniform and storage buffers, and others.
     /// </summary>
-    class Buffer : IMultiRangeItem, IRange, IDisposable
+    class Buffer : IMultiRangeItem, IDisposable
     {
         private const ulong GranularBufferThreshold = 4096;
 
@@ -28,19 +29,9 @@ namespace Ryujinx.Graphics.Gpu.Memory
         public MultiRange Range { get; }
 
         /// <summary>
-        /// Start address of the buffer in guest memory.
-        /// </summary>
-        public ulong Address { get; }
-
-        /// <summary>
         /// Size of the buffer in bytes.
         /// </summary>
         public ulong Size { get; }
-
-        /// <summary>
-        /// End address of the buffer in guest memory.
-        /// </summary>
-        public ulong EndAddress => Address + Size;
 
         /// <summary>
         /// Increments when the buffer is (partially) unmapped or disposed.
@@ -69,6 +60,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
         private bool _useGranular;
         private bool _syncActionRegistered;
 
+        private readonly List<(RangeList<BufferView>, BufferView)> _views;
+
         /// <summary>
         /// Creates a new instance of the buffer.
         /// </summary>
@@ -81,7 +74,6 @@ namespace Ryujinx.Graphics.Gpu.Memory
             _context        = context;
             _physicalMemory = physicalMemory;
             Range           = range;
-            Address         = range.GetSubRange(0).Address;
             Size            = range.GetSize();
 
             Handle = context.Renderer.CreateBuffer((int)Size);
@@ -136,6 +128,28 @@ namespace Ryujinx.Graphics.Gpu.Memory
             _externalFlushDelegate = new RegionSignal(ExternalFlush);
             _loadDelegate = new Action<ulong, ulong>(LoadRegion);
             _modifiedDelegate = new Action<ulong, ulong>(RegionModified);
+
+            _views = new List<(RangeList<BufferView>, BufferView)>();
+        }
+
+        public void AddView(RangeList<BufferView> list, BufferView view)
+        {
+            _views.Add((list, view));
+        }
+
+        public void RemoveView(RangeList<BufferView> list, BufferView view)
+        {
+            _views.Remove((list, view));
+        }
+
+        public void RemoveViewsFromRangeList()
+        {
+            foreach ((RangeList<BufferView> list, BufferView view) in _views)
+            {
+                list.Remove(view);
+            }
+
+            _views.Clear();
         }
 
         /// <summary>
@@ -180,17 +194,6 @@ namespace Ryujinx.Graphics.Gpu.Memory
         }
 
         /// <summary>
-        /// Checks if a given range overlaps with the buffer.
-        /// </summary>
-        /// <param name="address">Start address of the range</param>
-        /// <param name="size">Size in bytes of the range</param>
-        /// <returns>True if the range overlaps, false otherwise</returns>
-        public bool OverlapsWith(ulong address, ulong size)
-        {
-            return Address < address + size && address < EndAddress;
-        }
-
-        /// <summary>
         /// Performs guest to host memory synchronization of the buffer data.
         /// </summary>
         /// <remarks>
@@ -217,7 +220,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// </remarks>
         /// <param name="address">Start address of the range to synchronize</param>
         /// <param name="size">Size in bytes of the range to synchronize</param>
-        public void SynchronizeMemory(ulong address, ulong size)
+        private void SynchronizeMemory(ulong address, ulong size)
         {
             if (_useGranular)
             {
@@ -227,15 +230,20 @@ namespace Ryujinx.Graphics.Gpu.Memory
             {
                 if (_context.SequenceNumber != _sequenceNumber && _memoryTracking.DirtyOrVolatile())
                 {
+                    // Only one page buffers should use this mode.
+                    // Those will always have one range and there's only a single page.
+                    Debug.Assert(Range.Count == 1);
+                    MemoryRange subRange = Range.GetSubRange(0);
+
                     _memoryTracking.Reprotect();
 
                     if (_modifiedRanges != null)
                     {
-                        _modifiedRanges.ExcludeModifiedRegions(Address, Size, _loadDelegate);
+                        _modifiedRanges.ExcludeModifiedRegions(subRange.Address, subRange.Size, _loadDelegate);
                     }
                     else
                     {
-                        _context.Renderer.SetBufferData(Handle, 0, _physicalMemory.GetSpan(Address, (int)Size));
+                        _context.Renderer.SetBufferData(Handle, 0, _physicalMemory.GetSpan(subRange.Address, (int)subRange.Size));
                     }
 
                     _sequenceNumber = _context.SequenceNumber;
@@ -273,7 +281,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// </summary>
         /// <param name="address">The start address of the modified region</param>
         /// <param name="size">The size of the modified region</param>
-        public void SignalModified(ulong address, ulong size)
+        private void SignalModified(ulong address, ulong size)
         {
             EnsureRangeList();
 
@@ -310,16 +318,23 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
             if (_useGranular)
             {
-                _modifiedRanges?.GetRanges(Address, Size, (address, size) =>
+                for (int index = 0; index < Range.Count; index++)
                 {
-                    _memoryTrackingGranular.RegisterAction(address, size, _externalFlushDelegate);
-                    SynchronizeMemory(address, size);
-                });
+                    MemoryRange subRange = Range.GetSubRange(index);
+
+                    _modifiedRanges?.GetRanges(subRange.Address, subRange.Size, (address, size) =>
+                    {
+                        _memoryTrackingGranular.RegisterAction(address, size, _externalFlushDelegate);
+                        SynchronizeMemory(address, size);
+                    });
+                }
             }
             else
             {
+                MemoryRange subRange = Range.GetSubRange(0);
+
                 _memoryTracking.RegisterAction(_externalFlushDelegate);
-                SynchronizeMemory(Address, Size);
+                SynchronizeMemory(subRange.Address, subRange.Size);
             }
         }
 
@@ -450,7 +465,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// </summary>
         /// <param name="address">Start address of the range</param>
         /// <param name="size">Size in bytes of the range</param>
-        public void Flush(ulong address, ulong size)
+        private void Flush(ulong address, ulong size)
         {
             int offset = Range.FindOffset(new MultiRange(address, size));
 
@@ -480,7 +495,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// </summary>
         /// <param name="address">Address of the memory action</param>
         /// <param name="size">Size in bytes</param>
-        public void ExternalFlush(ulong address, ulong size)
+        private void ExternalFlush(ulong address, ulong size)
         {
             _context.Renderer.BackgroundContextAction(() =>
             {
@@ -520,12 +535,14 @@ namespace Ryujinx.Graphics.Gpu.Memory
         {
             if (Range.Count == 1)
             {
-                if (address < Address)
+                MemoryRange subRange = Range.GetSubRange(0);
+
+                if (address < subRange.Address)
                 {
-                    address = Address;
+                    address = subRange.Address;
                 }
 
-                ulong maxSize = Address + Size - address;
+                ulong maxSize = subRange.Address + subRange.Size - address;
 
                 if (size > maxSize)
                 {

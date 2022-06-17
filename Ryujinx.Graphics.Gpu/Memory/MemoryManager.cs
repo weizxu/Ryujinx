@@ -40,6 +40,11 @@ namespace Ryujinx.Graphics.Gpu.Memory
         internal PhysicalMemory Physical { get; }
 
         /// <summary>
+        /// Cache of GPU buffers, cached by GPU virtual memory regions.
+        /// </summary>
+        internal VirtualBufferCache VirtualBufferCache { get; }
+
+        /// <summary>
         /// Cache of GPU counters.
         /// </summary>
         internal CounterCache CounterCache { get; }
@@ -47,14 +52,16 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <summary>
         /// Creates a new instance of the GPU memory manager.
         /// </summary>
+        /// <param name="context">GPU context that the memory manager belongs to</param>
         /// <param name="physicalMemory">Physical memory that this memory manager will map into</param>
-        internal MemoryManager(PhysicalMemory physicalMemory)
+        internal MemoryManager(GpuContext context, PhysicalMemory physicalMemory)
         {
             Physical = physicalMemory;
+            VirtualBufferCache = new VirtualBufferCache(context, this);
             CounterCache = new CounterCache();
             _pageTable = new ulong[PtLvl0Size][];
             MemoryUnmapped += Physical.TextureCache.MemoryUnmappedHandler;
-            MemoryUnmapped += Physical.BufferCache.MemoryUnmappedHandler;
+            MemoryUnmapped += VirtualBufferCache.MemoryUnmappedHandler;
             MemoryUnmapped += CounterCache.MemoryUnmappedHandler;
         }
 

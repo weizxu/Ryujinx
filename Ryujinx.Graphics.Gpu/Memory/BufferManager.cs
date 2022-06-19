@@ -17,6 +17,9 @@ namespace Ryujinx.Graphics.Gpu.Memory
         private readonly GpuContext _context;
         private readonly GpuChannel _channel;
 
+        private MemoryManager _lastMemoryManager;
+        private int _lastMappingUpdates;
+
         private IndexBuffer _indexBuffer;
         private readonly VertexBuffer[] _vertexBuffers;
         private readonly BufferBounds[] _transformFeedbackBuffers;
@@ -126,7 +129,6 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
             _ranges = new BufferRange[Constants.TotalGpUniformBuffers * Constants.ShaderStages];
         }
-
 
         /// <summary>
         /// Sets the memory range with the index buffer data, to be used for subsequent draw calls.
@@ -453,7 +455,16 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// </summary>
         public void CommitGraphicsBindings()
         {
-            var bufferCache = _channel.MemoryManager.VirtualBufferCache;
+            var memoryManager = _channel.MemoryManager;
+            var bufferCache = memoryManager.VirtualBufferCache;
+
+            if (_lastMemoryManager != memoryManager || _lastMappingUpdates != bufferCache.MappingUpdates)
+            {
+                _lastMemoryManager = memoryManager;
+                _lastMappingUpdates = bufferCache.MappingUpdates;
+
+                RefreshMappings(bufferCache);
+            }
 
             if (_indexBufferDirty || _rebind)
             {
@@ -571,6 +582,51 @@ namespace Ryujinx.Graphics.Gpu.Memory
             CommitBufferTextureBindings();
 
             _rebind = false;
+        }
+
+        private void RefreshMappings(VirtualBufferCache bufferCache)
+        {
+            // Make sure that all buffers that might be used exists in the cache.
+            // This should be done every time the mappings changes and the cache is modified due to that.
+
+            EnsureBuffer(bufferCache, _indexBuffer.GpuVa, _indexBuffer.Size);
+
+            for (int index = 0; index < _vertexBuffers.Length; index++)
+            {
+                ref var vb = ref _vertexBuffers[index];
+
+                EnsureBuffer(bufferCache, vb.GpuVa, vb.Size);
+            }
+
+            for (int index = 0; index < _transformFeedbackBuffers.Length; index++)
+            {
+                ref var tfb = ref _transformFeedbackBuffers[index];
+
+                EnsureBuffer(bufferCache, tfb.GpuVa, tfb.Size);
+            }
+
+            EnsureBuffer(bufferCache, _gpStorageBuffers);
+            EnsureBuffer(bufferCache, _gpUniformBuffers);
+        }
+
+        private static void EnsureBuffer(VirtualBufferCache bufferCache, BuffersPerStage[] buffersPerStage)
+        {
+            for (int index = 0; index < buffersPerStage.Length; index++)
+            {
+                for (int bufferIndex = 0; bufferIndex < buffersPerStage[index].Buffers.Length; bufferIndex++)
+                {
+                    var bounds = buffersPerStage[index].Buffers[bufferIndex];
+                    EnsureBuffer(bufferCache, bounds.GpuVa, bounds.Size);
+                }
+            }
+        }
+
+        private static void EnsureBuffer(VirtualBufferCache bufferCache, ulong gpuVa, ulong size)
+        {
+            if (gpuVa != 0)
+            {
+                bufferCache.CreateBuffer(gpuVa, size);
+            }
         }
 
         /// <summary>

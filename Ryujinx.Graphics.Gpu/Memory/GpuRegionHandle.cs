@@ -81,7 +81,12 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
         public IRegionHandle GetHandle()
         {
-            return _cpuRegionHandles[0].GetHandle();
+            if (_cpuRegionHandles.Length == 1)
+            {
+                return _cpuRegionHandles[0].GetHandle();
+            }
+
+            throw new NotSupportedException();
         }
 
         /// <summary>

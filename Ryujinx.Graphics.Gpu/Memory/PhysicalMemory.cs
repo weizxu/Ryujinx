@@ -341,18 +341,57 @@ namespace Ryujinx.Graphics.Gpu.Memory
             var cpuRegionHandles = new CpuMultiRegionHandle[range.Count];
             int handlesCount = 0;
 
+            IRegionHandle[] handlesArray = null;
+            int currentIndex = 0;
+
             for (int i = 0; i < range.Count; i++)
             {
                 var currentRange = range.GetSubRange(i);
 
                 if (currentRange.Address != MemoryManager.PteUnmapped)
                 {
-                    var handlesForRange = handles;
+                    IEnumerable<IRegionHandle> handlesForRange = handles;
 
                     if (handles != null && range.Count > 1)
                     {
-                        handlesForRange = handles.Where(x => x.Address >= currentRange.Address && x.EndAddress <= currentRange.EndAddress);
+                        if (handlesArray == null)
+                        {
+                            handlesArray = handles.ToArray();
+                        }
+
+                        int previousIndex = currentIndex;
+                        ulong currentAddress = currentRange.Address;
+
+                        while (currentIndex < handlesArray.Length &&
+                            handlesArray[currentIndex].Address >= currentAddress &&
+                            handlesArray[currentIndex].EndAddress <= currentRange.EndAddress)
+                        {
+                            currentAddress = handlesArray[currentIndex].Address;
+                            currentIndex++;
+                        }
+
+                        int count = currentIndex - previousIndex;
+                        if (count != 0)
+                        {
+                            handlesForRange = new ArraySegment<IRegionHandle>(handlesArray, previousIndex, count);
+                        }
+                        else
+                        {
+                            handlesForRange = null;
+                        }
                     }
+
+                    /* if (handlesForRange != null)
+                    {
+                        foreach (var hnd in handlesForRange)
+                        {
+                            System.Console.WriteLine($"rg {currentRange} has handle 0x{hnd.Address:X}->0x{hnd.EndAddress:X} {hnd.Dirty}");
+                        }
+                    }
+                    else
+                    {
+                        System.Console.WriteLine($"rg {currentRange} has no handles");
+                    } */
 
                     cpuRegionHandles[handlesCount++] = _cpuMemory.BeginGranularTracking(
                         currentRange.Address,

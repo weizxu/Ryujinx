@@ -1,6 +1,7 @@
 using Ryujinx.Graphics.GAL;
 using Ryujinx.Memory.Range;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 
 namespace Ryujinx.Graphics.Gpu.Memory
@@ -18,6 +19,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
         private const ulong MaxDynamicGrowthSize = 0x100000;
 
+        public int MappingUpdates { get; private set; }
+
         private readonly GpuContext _context;
         private readonly MemoryManager _memoryManager;
         private readonly BufferCache _bufferCache;
@@ -27,6 +30,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         private BufferView[] _viewOverlaps;
 
         private readonly Dictionary<ulong, BufferCacheEntry> _dirtyCache;
+        private readonly ConcurrentQueue<UnmapEventArgs> _pendingUnmaps;
 
         /// <summary>
         /// Creates a new instance of the buffer manager.
@@ -44,6 +48,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
             _viewOverlaps = new BufferView[OverlapsBufferInitialCapacity];
 
             _dirtyCache = new Dictionary<ulong, BufferCacheEntry>();
+            _pendingUnmaps = new ConcurrentQueue<UnmapEventArgs>();
         }
 
         /// <summary>
@@ -56,18 +61,100 @@ namespace Ryujinx.Graphics.Gpu.Memory
             BufferView[] overlaps = new BufferView[10];
             int overlapCount;
 
-            ulong address = ((MemoryManager)sender).Translate(e.Address);
-            ulong size = e.Size;
-
             lock (_buffers)
             {
-                overlapCount = _buffers.FindOverlaps(address, size, ref overlaps);
+                overlapCount = _buffers.FindOverlaps(e.Address, e.Size, ref overlaps);
             }
 
             for (int i = 0; i < overlapCount; i++)
             {
-                overlaps[i].Buffer.Unmapped(address, size);
+                BufferView view = overlaps[i];
+                ulong clampedAddress = Math.Max(view.Address, e.Address);
+                ulong clampedEndAddress = Math.Min(view.EndAddress, e.Address + e.Size);
+                ulong clampedSize = clampedEndAddress - clampedAddress;
+
+                if (clampedSize != 0)
+                {
+                    ulong offset = clampedAddress - view.Address;
+                    MultiRange unmappedRange = view.Buffer.Range.GetSlice((ulong)view.BaseOffset + offset, clampedSize);
+
+                    for (int j = 0; j < unmappedRange.Count; j++)
+                    {
+                        MemoryRange subRange = unmappedRange.GetSubRange(j);
+                        view.Buffer.Unmapped(subRange.Address, subRange.Size);
+                    }
+                }
             }
+
+            _pendingUnmaps.Enqueue(e);
+        }
+
+        public void RefreshMappings()
+        {
+            bool updated = false;
+
+            while (_pendingUnmaps.TryDequeue(out UnmapEventArgs unmapRegion))
+            {
+                BufferView[] overlaps = _viewOverlaps;
+                int overlapCount;
+
+                lock (_buffers)
+                {
+                    overlapCount = _buffers.FindOverlaps(unmapRegion.Address, unmapRegion.Size, ref overlaps);
+                }
+
+                for (int i = 0; i < overlapCount; i++)
+                {
+                    // RefreshViewMapping(ref overlaps[i]);
+                    RemoveRange(ref overlaps[i], unmapRegion.Address, unmapRegion.Size);
+                }
+
+                updated |= overlapCount != 0;
+            }
+
+            if (updated)
+            {
+                MappingUpdates++;
+            }
+        }
+
+        private void RemoveRange(ref BufferView view, ulong gpuVa, ulong size)
+        {
+            ulong clampedAddress = Math.Max(view.Address, gpuVa);
+            ulong clampedEndAddress = Math.Min(view.EndAddress, gpuVa + size);
+
+            if (clampedAddress >= clampedEndAddress)
+            {
+                // Nothing to remove.
+                return;
+            }
+
+            RemoveView(ref view);
+
+            if (clampedAddress > view.Address)
+            {
+                BufferView leftView = new BufferView(view.Address, clampedAddress - view.Address, view.BaseOffset, view.Buffer);
+                view.Buffer.AddView(_buffers, leftView);
+
+                lock (_buffers)
+                {
+                    _buffers.Add(leftView);
+                }
+            }
+
+            if (clampedEndAddress < view.EndAddress)
+            {
+                int newOffset = view.BaseOffset + (int)(clampedEndAddress - view.Address);
+                BufferView rightView = new BufferView(clampedEndAddress, view.EndAddress - clampedEndAddress, newOffset, view.Buffer);
+                view.Buffer.AddView(_buffers, rightView);
+
+                lock (_buffers)
+                {
+                    _buffers.Add(rightView);
+                }
+            }
+
+            _bufferCache.RemoveBufferIfUnused(view.Buffer);
         }
 
         /// <summary>
@@ -102,6 +189,14 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 MemoryRange subRange = result.Range.GetSubRange(index);
                 result.Buffer.ForceDirty(subRange.Address, subRange.Size);
             }
+        }
+
+        private void RefreshViewMapping(ref BufferView view)
+        {
+            RemoveView(ref view);
+            CreateView(view.Address, view.Size);
+
+            _bufferCache.RemoveBufferIfUnused(view.Buffer);
         }
 
         /// <summary>
@@ -141,8 +236,6 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 overlapsCount = _buffers.FindOverlapsNonOverlapping(gpuVa, size, ref _viewOverlaps);
             }
 
-            BufferView view;
-
             if (overlapsCount != 0)
             {
                 // The buffer already exists. We can just return the existing buffer
@@ -167,7 +260,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 // sequential memory.
                 // Allowing for 2 pages (rather than just one) is necessary to catch cases where the
                 // range crosses a page, and after alignment, ends having a size of 2 pages.
-                if (overlapsCount == 1 &&
+                /* if (overlapsCount == 1 &&
                     gpuVa >= _viewOverlaps[0].Address &&
                     endAddress - _viewOverlaps[0].EndAddress <= BufferAlignmentSize * 2)
                 {
@@ -180,28 +273,39 @@ namespace Ryujinx.Graphics.Gpu.Memory
                     endAddress = gpuVa + size;
 
                     overlapsCount = _buffers.FindOverlapsNonOverlapping(gpuVa, size, ref _viewOverlaps);
-                }
+                } */
 
                 for (int index = 0; index < overlapsCount; index++)
                 {
-                    view = _viewOverlaps[index];
+                    ref BufferView view = ref _viewOverlaps[index];
 
                     gpuVa = Math.Min(gpuVa, view.Address);
                     endAddress = Math.Max(endAddress, view.EndAddress);
 
-                    lock (_buffers)
-                    {
-                        _buffers.Remove(view);
-                        view.Buffer.RemoveView(_buffers, view);
-                    }
+                    RemoveView(ref view);
                 }
 
                 size = endAddress - gpuVa;
             }
 
+            CreateView(gpuVa, size);
+
+            ShrinkOverlapsBufferIfNeeded();
+        }
+
+        private void CreateView(ulong gpuVa, ulong size)
+        {
             MultiRange range = _memoryManager.GetPhysicalRegions(gpuVa, size);
+
+            // We do not want to create the view if the memory is completely unmapped,
+            // as such a buffer would not be able to store any data.
+            if (IsFullyUnmapped(range))
+            {
+                return;
+            }
+
             Buffer buffer = _bufferCache.FindOrCreateMultiRangeBuffer(range, out int bufferOffset);
-            view = new BufferView(gpuVa, size, bufferOffset, buffer);
+            BufferView view = new BufferView(gpuVa, size, bufferOffset, buffer);
 
             lock (_buffers)
             {
@@ -209,8 +313,30 @@ namespace Ryujinx.Graphics.Gpu.Memory
             }
 
             buffer.AddView(_buffers, view);
+        }
 
-            ShrinkOverlapsBufferIfNeeded();
+        private static bool IsFullyUnmapped(MultiRange range)
+        {
+            for (int i = 0; i < range.Count; i++)
+            {
+                MemoryRange subRange = range.GetSubRange(i);
+                if (subRange.Address != MemoryManager.PteUnmapped)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private void RemoveView(ref BufferView view)
+        {
+            lock (_buffers)
+            {
+                _buffers.Remove(view);
+            }
+
+            view.Buffer.RemoveView(_buffers, view);
         }
 
         /// <summary>
@@ -335,13 +461,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
             if (buffer == null)
             {
-                throw new Exception("returning null buffer");
                 return BufferRange.Empty;
-            }
-
-            if (buffer.Handle == BufferHandle.Null)
-            {
-                throw new Exception("huh? null handle?");
             }
 
             return new BufferRange(buffer.Handle, bufferOffset, (int)size);
@@ -362,8 +482,6 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
             if (size != 0)
             {
-                CreateBuffer(gpuVa, size);
-
                 BufferView view;
 
                 lock (_buffers)
@@ -408,8 +526,6 @@ namespace Ryujinx.Graphics.Gpu.Memory
         {
             if (size != 0)
             {
-                CreateBuffer(gpuVa, size);
-
                 BufferView view;
 
                 lock (_buffers)

@@ -3,6 +3,7 @@ using Ryujinx.Memory.Range;
 using Ryujinx.Memory.Tracking;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Ryujinx.Graphics.Gpu.Memory
 {
@@ -70,14 +71,12 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
         public IEnumerable<IRegionHandle> GetHandles()
         {
-            List<IRegionHandle> handles = new List<IRegionHandle>();
-
-            foreach (var regionHandle in _cpuRegionHandles)
+            if (_cpuRegionHandles.Length == 1)
             {
-                handles.AddRange(regionHandle.GetHandles());
+                return _cpuRegionHandles[0].GetHandles();
             }
 
-            return handles;
+            return _cpuRegionHandles.SelectMany(x => x.GetHandles());
         }
 
         /// <summary>

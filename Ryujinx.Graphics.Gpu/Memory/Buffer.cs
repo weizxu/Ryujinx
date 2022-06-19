@@ -38,6 +38,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// </summary>
         public int UnmappedSequence { get; private set; }
 
+        public bool HasViews => _views.Count != 0;
+
         /// <summary>
         /// Ranges of the buffer that have been modified on the GPU.
         /// Ranges defined here cannot be updated from CPU until a CPU waiting sync point is reached.
@@ -78,11 +80,11 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
             Handle = context.Renderer.CreateBuffer((int)Size);
 
-            _useGranular = Size > GranularBufferThreshold;
+            _useGranular = Size > GranularBufferThreshold || range.Count > 1;
 
             IEnumerable<IRegionHandle> baseHandles = null;
 
-            if (baseBuffers != null)
+            if (baseBuffers != null && baseBuffers.Any())
             {
                 baseHandles = baseBuffers.SelectMany(buffer =>
                 {
@@ -142,11 +144,19 @@ namespace Ryujinx.Graphics.Gpu.Memory
             _views.Remove((list, view));
         }
 
-        public void RemoveViewsFromRangeList()
+        public void UpdateViews(Buffer newBuffer, int offsetDelta)
         {
             foreach ((RangeList<BufferView> list, BufferView view) in _views)
             {
-                list.Remove(view);
+                BufferView newView = new BufferView(view.Address, view.Size, view.BaseOffset + offsetDelta, newBuffer);
+
+                lock (list)
+                {
+                    list.Remove(view);
+                    list.Add(newView);
+                }
+
+                newBuffer.AddView(list, newView);
             }
 
             _views.Clear();
@@ -230,8 +240,6 @@ namespace Ryujinx.Graphics.Gpu.Memory
             {
                 if (_context.SequenceNumber != _sequenceNumber && _memoryTracking.DirtyOrVolatile())
                 {
-                    // Only one page buffers should use this mode.
-                    // Those will always have one range and there's only a single page.
                     Debug.Assert(Range.Count == 1);
                     MemoryRange subRange = Range.GetSubRange(0);
 
@@ -331,6 +339,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
             }
             else
             {
+                Debug.Assert(Range.Count == 1);
                 MemoryRange subRange = Range.GetSubRange(0);
 
                 _memoryTracking.RegisterAction(_externalFlushDelegate);
@@ -456,7 +465,19 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// <param name="dstOffset">The offset of the destination buffer to copy into</param>
         public void CopyTo(Buffer destination, int dstOffset)
         {
-            _context.Renderer.Pipeline.CopyBuffer(Handle, destination.Handle, 0, dstOffset, (int)Size);
+            CopyTo(destination, 0, dstOffset, (int)Size);
+        }
+
+        /// <summary>
+        /// Performs copy of all the buffer data from one buffer to another.
+        /// </summary>
+        /// <param name="destination">The destination buffer to copy the data into</param>
+        /// <param name="srcOffset">The offset of the source buffer to copy from</param>
+        /// <param name="dstOffset">The offset of the destination buffer to copy into</param>
+        /// <param name="size">Number of bytes to copy</param>
+        public void CopyTo(Buffer destination, int srcOffset, int dstOffset, int size)
+        {
+            _context.Renderer.Pipeline.CopyBuffer(Handle, destination.Handle, srcOffset, dstOffset, size);
         }
 
         /// <summary>

@@ -21,6 +21,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
         public event Action NotifyBuffersModified;
 
+        private ulong _totalBufferSize;
+
         /// <summary>
         /// Creates a new instance of the buffer manager.
         /// </summary>
@@ -57,12 +59,26 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 }
                 else if (range.Contains(overlap.Range))
                 {
+                    // System.Console.WriteLine("contained overlap " + overlap.Range);
                     overlaps[fullyContainedOverlaps++] = overlap;
+                }
+                else
+                {
+                    // System.Console.WriteLine($"rg {range} has non-containable overlap {overlap.Range}");
                 }
             }
 
+            if (overlapsCount != fullyContainedOverlaps)
+            {
+                // throw new Exception("non-containable overlaps found");
+            }
+
+            // System.Console.WriteLine("create buffer " + range);
+
             // None of the existing buffers fully contains the discontinuous range, create a new one.
-            Buffer buffer = new Buffer(_context, _physicalMemory, range/*, overlaps.Take(fullyContainedOverlaps)*/);
+            Buffer buffer = new Buffer(_context, _physicalMemory, range, overlaps.Take(fullyContainedOverlaps));
+
+            _totalBufferSize += buffer.Size;
 
             _discontinuousBuffers.Add(buffer);
 
@@ -75,12 +91,20 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 {
                     overlap.CopyTo(buffer, offsetWithinOverlap);
                     _discontinuousBuffers.Remove(overlap);
-                    // buffer.InheritModifiedRanges(overlap);
+                    buffer.InheritModifiedRanges(overlap);
 
                     overlap.DisposeData();
-                    overlap.RemoveViewsFromRangeList();
+                    overlap.UpdateViews(buffer, offsetWithinOverlap);
+
+                    _totalBufferSize -= overlap.Size;
+                }
+                else
+                {
+                    throw new Exception("bad offset");
                 }
             }
+
+            // System.Console.WriteLine("total buffer usage: " + (_totalBufferSize / (1024 * 1024)) + " MB");
 
             if (fullyContainedOverlaps != 0)
             {
@@ -93,6 +117,72 @@ namespace Ryujinx.Graphics.Gpu.Memory
             ShrinkOverlapsBufferIfNeeded();
             offset = 0;
             return buffer;
+        }
+
+        public void RemoveBufferIfUnused(Buffer buffer)
+        {
+            if (!buffer.HasViews)
+            {
+                _discontinuousBuffers.Remove(buffer);
+                buffer.Dispose();
+                _totalBufferSize -= buffer.Size;
+
+                NotifyBuffersModified?.Invoke();
+            }
+        }
+
+        public void SplitRange(Buffer buffer, ulong offset, MultiRange range)
+        {
+            // Split a buffer into up to 3 buffers, given a range that should be
+            // split into a separate buffer.
+            // We have 3 cases:
+            // - Range covers the entire buffer, no split is performed.
+            // - Range is at the start or end of the buffer, the buffer is split in 2.
+            // - Range is at the middle of the buffer, the buffer is split in 3.
+
+            // In the future, we might want to delete the middle buffer
+            // if there is no other "buffer view" that might use it.
+
+            ulong rangeSize = range.GetSize();
+            if (rangeSize == buffer.Size)
+            {
+                // No split needed as the range covers the entire buffer.
+                return;
+            }
+
+            ulong rightOffset = offset + rangeSize;
+            ulong rightSize = buffer.Size - rightOffset;
+
+            Buffer middleBuffer = new Buffer(_context, _physicalMemory, range);
+            buffer.CopyTo(middleBuffer, (int)offset, 0, (int)rangeSize);
+
+            lock (_discontinuousBuffers)
+            {
+                _discontinuousBuffers.Remove(buffer);
+                _discontinuousBuffers.Add(middleBuffer);
+            }
+
+            if (offset != 0)
+            {
+                Buffer leftBuffer = new Buffer(_context, _physicalMemory, buffer.Range.GetSlice(0, offset));
+                buffer.CopyTo(leftBuffer, 0, 0, (int)offset);
+
+                lock (_discontinuousBuffers)
+                {
+                    _discontinuousBuffers.Add(leftBuffer);
+                }
+            }
+
+            if (rightSize != 0)
+            {
+                Buffer rightBuffer = new Buffer(_context, _physicalMemory, buffer.Range.GetSlice(rightOffset, rightSize));
+                buffer.CopyTo(rightBuffer, (int)rightOffset, 0, (int)rightSize);
+
+                lock (_discontinuousBuffers)
+                {
+                    _discontinuousBuffers.Add(rightBuffer);
+                }
+            }
         }
 
         /* private void CreateDiscontinuousBuffer(MultiRange range)

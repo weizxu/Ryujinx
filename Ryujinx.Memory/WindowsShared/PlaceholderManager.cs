@@ -264,23 +264,14 @@ namespace Ryujinx.Memory.WindowsShared
 
                 if (IsMapped(overlap.Value))
                 {
-                    if (!WindowsApi.UnmapViewOfFile2(WindowsApi.CurrentProcessHandle, (IntPtr)overlap.Start, 2))
-                    {
-                        throw new WindowsApiException("UnmapViewOfFile2");
-                    }
-
-                    ulong overlapStart = overlap.Start;
-                    ulong overlapEnd = overlap.End;
-                    ulong overlapValue = overlap.Value;
-
                     lock (_mappings)
                     {
                         _mappings.Remove(overlap);
-                        _mappings.Add(new RangeNode<ulong>(overlapStart, overlapEnd, ulong.MaxValue));
+                        _mappings.Add(new RangeNode<ulong>(overlap.Start, overlap.End, ulong.MaxValue));
                     }
 
-                    bool overlapStartsBefore = overlapStart < startAddress;
-                    bool overlapEndsAfter = overlapEnd > endAddress;
+                    bool overlapStartsBefore = overlap.Start < startAddress;
+                    bool overlapEndsAfter = overlap.End > endAddress;
 
                     if (overlapStartsBefore || overlapEndsAfter)
                     {
@@ -293,26 +284,35 @@ namespace Ryujinx.Memory.WindowsShared
 
                         _partialUnmapsCount++;
 
+                        if (!WindowsApi.UnmapViewOfFile2(WindowsApi.CurrentProcessHandle, (IntPtr)overlap.Start, 2))
+                        {
+                            throw new WindowsApiException("UnmapViewOfFile2");
+                        }
+
                         if (overlapStartsBefore)
                         {
-                            ulong remapSize = startAddress - overlapStart;
+                            ulong remapSize = startAddress - overlap.Start;
 
-                            MapViewInternal(sharedMemory, overlapValue, (IntPtr)overlapStart, (IntPtr)remapSize);
-                            RestoreRangeProtection(overlapStart, remapSize);
+                            MapViewInternal(sharedMemory, overlap.Value, (IntPtr)overlap.Start, (IntPtr)remapSize);
+                            RestoreRangeProtection(overlap.Start, remapSize);
                         }
 
                         if (overlapEndsAfter)
                         {
-                            ulong overlappedSize = endAddress - overlapStart;
-                            ulong remapBackingOffset = overlapValue + overlappedSize;
-                            ulong remapAddress = overlapStart + overlappedSize;
-                            ulong remapSize = overlapEnd - endAddress;
+                            ulong overlappedSize = endAddress - overlap.Start;
+                            ulong remapBackingOffset = overlap.Value + overlappedSize;
+                            ulong remapAddress = overlap.Start + overlappedSize;
+                            ulong remapSize = overlap.End - endAddress;
 
                             MapViewInternal(sharedMemory, remapBackingOffset, (IntPtr)remapAddress, (IntPtr)remapSize);
                             RestoreRangeProtection(remapAddress, remapSize);
                         }
 
                         _partialUnmapLock.DowngradeFromWriterLock(ref lockCookie);
+                    }
+                    else if (!WindowsApi.UnmapViewOfFile2(WindowsApi.CurrentProcessHandle, (IntPtr)overlap.Start, 2))
+                    {
+                        throw new WindowsApiException("UnmapViewOfFile2");
                     }
                 }
             }

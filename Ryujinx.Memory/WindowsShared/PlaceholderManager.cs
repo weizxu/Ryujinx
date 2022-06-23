@@ -11,13 +11,13 @@ namespace Ryujinx.Memory.WindowsShared
     [SupportedOSPlatform("windows")]
     class PlaceholderManager
     {
-        private const ulong MinimumPageSize = 0x1000;
+        private const int InitialOverlapsSize = 10;
 
         [ThreadStatic]
         private static int _threadLocalPartialUnmapsCount;
 
-        private readonly IntervalTree<ulong, ulong> _mappings;
-        private readonly IntervalTree<ulong, MemoryPermission> _protections;
+        private readonly MappingTree<ulong> _mappings;
+        private readonly MappingTree<MemoryPermission> _protections;
         private readonly ReaderWriterLock _partialUnmapLock;
         private int _partialUnmapsCount;
 
@@ -26,8 +26,8 @@ namespace Ryujinx.Memory.WindowsShared
         /// </summary>
         public PlaceholderManager()
         {
-            _mappings = new IntervalTree<ulong, ulong>();
-            _protections = new IntervalTree<ulong, MemoryPermission>();
+            _mappings = new MappingTree<ulong>();
+            _protections = new MappingTree<MemoryPermission>();
             _partialUnmapLock = new ReaderWriterLock();
         }
 
@@ -40,7 +40,7 @@ namespace Ryujinx.Memory.WindowsShared
         {
             lock (_mappings)
             {
-                _mappings.Add(address, address + size, ulong.MaxValue);
+                _mappings.Add(new RangeNode<ulong>(address, address + size, ulong.MaxValue));
             }
         }
 
@@ -54,12 +54,12 @@ namespace Ryujinx.Memory.WindowsShared
         {
             ulong endAddress = address + size;
 
-            var overlaps = Array.Empty<IntervalTreeNode<ulong, ulong>>();
+            var overlaps = new RangeNode<ulong>[InitialOverlapsSize];
             int count;
 
             lock (_mappings)
             {
-                count = _mappings.Get(address, endAddress, ref overlaps);
+                count = _mappings.GetNodes(address, endAddress, ref overlaps);
 
                 for (int index = 0; index < count; index++)
                 {
@@ -150,11 +150,11 @@ namespace Ryujinx.Memory.WindowsShared
         {
             ulong endAddress = address + size;
 
-            var overlaps = Array.Empty<IntervalTreeNode<ulong, ulong>>();
+            var overlaps = new RangeNode<ulong>[InitialOverlapsSize];
 
             lock (_mappings)
             {
-                int count = _mappings.Get(address, endAddress, ref overlaps);
+                int count = _mappings.GetNodes(address, endAddress, ref overlaps);
 
                 Debug.Assert(count == 1);
                 Debug.Assert(!IsMapped(overlaps[0].Value));
@@ -178,8 +178,8 @@ namespace Ryujinx.Memory.WindowsShared
                         (IntPtr)size,
                         AllocationType.Release | AllocationType.PreservePlaceholder));
 
-                    _mappings.Add(overlapStart, address, overlapValue);
-                    _mappings.Add(endAddress, overlapEnd, AddBackingOffset(overlapValue, endAddress - overlapStart));
+                    _mappings.Add(new RangeNode<ulong>(overlapStart, address, overlapValue));
+                    _mappings.Add(new RangeNode<ulong>(endAddress, overlapEnd, AddBackingOffset(overlapValue, endAddress - overlapStart)));
                 }
                 else if (overlapStartsBefore)
                 {
@@ -190,7 +190,7 @@ namespace Ryujinx.Memory.WindowsShared
                         (IntPtr)overlappedSize,
                         AllocationType.Release | AllocationType.PreservePlaceholder));
 
-                    _mappings.Add(overlapStart, address, overlapValue);
+                    _mappings.Add(new RangeNode<ulong>(overlapStart, address, overlapValue));
                 }
                 else if (overlapEndsAfter)
                 {
@@ -201,10 +201,10 @@ namespace Ryujinx.Memory.WindowsShared
                         (IntPtr)overlappedSize,
                         AllocationType.Release | AllocationType.PreservePlaceholder));
 
-                    _mappings.Add(endAddress, overlapEnd, AddBackingOffset(overlapValue, overlappedSize));
+                    _mappings.Add(new RangeNode<ulong>(endAddress, overlapEnd, AddBackingOffset(overlapValue, overlappedSize)));
                 }
 
-                _mappings.Add(address, endAddress, backingOffset);
+                _mappings.Add(new RangeNode<ulong>(address, endAddress, backingOffset));
             }
         }
 
@@ -251,12 +251,12 @@ namespace Ryujinx.Memory.WindowsShared
             ulong unmapSize = (ulong)size;
             ulong endAddress = startAddress + unmapSize;
 
-            var overlaps = Array.Empty<IntervalTreeNode<ulong, ulong>>();
+            var overlaps = new RangeNode<ulong>[InitialOverlapsSize];
             int count;
 
             lock (_mappings)
             {
-                count = _mappings.Get(startAddress, endAddress, ref overlaps);
+                count = _mappings.GetNodes(startAddress, endAddress, ref overlaps);
             }
 
             for (int index = 0; index < count; index++)
@@ -278,7 +278,7 @@ namespace Ryujinx.Memory.WindowsShared
                     lock (_mappings)
                     {
                         _mappings.Remove(overlap);
-                        _mappings.Add(overlapStart, overlapEnd, ulong.MaxValue);
+                        _mappings.Add(new RangeNode<ulong>(overlapStart, overlapEnd, ulong.MaxValue));
                     }
 
                     bool overlapStartsBefore = overlapStart < startAddress;
@@ -334,20 +334,21 @@ namespace Ryujinx.Memory.WindowsShared
             ulong endAddress = address + size;
             ulong blockAddress = (ulong)owner.Pointer;
             ulong blockEnd = blockAddress + owner.Size;
-            var overlaps = Array.Empty<IntervalTreeNode<ulong, ulong>>();
+            var overlaps = new RangeNode<ulong>[InitialOverlapsSize];
             int unmappedCount = 0;
 
             lock (_mappings)
             {
-                int count = _mappings.Get(
-                    Math.Max(address - MinimumPageSize, blockAddress),
-                    Math.Min(endAddress + MinimumPageSize, blockEnd), ref overlaps);
+                int count = _mappings.GetNodes(address, endAddress, ref overlaps);
 
-                if (count < 2)
+                if (count == 0)
                 {
-                    // Nothing to coalesce if we only have 1 or no overlaps.
+                    // Nothing to coalesce if we no overlaps.
                     return;
                 }
+
+                RangeNode<ulong> predecessor = overlaps[0].Predecessor;
+                RangeNode<ulong> successor = overlaps[count - 1].Successor;
 
                 for (int index = 0; index < count; index++)
                 {
@@ -355,23 +356,31 @@ namespace Ryujinx.Memory.WindowsShared
 
                     if (!IsMapped(overlap.Value))
                     {
-                        if (address > overlap.Start)
-                        {
-                            address = overlap.Start;
-                        }
-
-                        if (endAddress < overlap.End)
-                        {
-                            endAddress = overlap.End;
-                        }
+                        address = Math.Min(address, overlap.Start);
+                        endAddress = Math.Max(endAddress, overlap.End);
 
                         _mappings.Remove(overlap);
-
                         unmappedCount++;
                     }
                 }
 
-                _mappings.Add(address, endAddress, ulong.MaxValue);
+                if (predecessor != null && !IsMapped(predecessor.Value) && predecessor.Start >= blockAddress)
+                {
+                    address = Math.Min(address, predecessor.Start);
+
+                    _mappings.Remove(predecessor);
+                    unmappedCount++;
+                }
+
+                if (successor != null && !IsMapped(successor.Value) && successor.End <= blockEnd)
+                {
+                    endAddress = Math.Max(endAddress, successor.End);
+
+                    _mappings.Remove(successor);
+                    unmappedCount++;
+                }
+
+                _mappings.Add(new RangeNode<ulong>(address, endAddress, ulong.MaxValue));
             }
 
             if (unmappedCount > 1)
@@ -421,12 +430,12 @@ namespace Ryujinx.Memory.WindowsShared
             ulong reprotectSize = (ulong)size;
             ulong endAddress = reprotectAddress + reprotectSize;
 
-            var overlaps = Array.Empty<IntervalTreeNode<ulong, ulong>>();
+            var overlaps = new RangeNode<ulong>[InitialOverlapsSize];
             int count;
 
             lock (_mappings)
             {
-                count = _mappings.Get(reprotectAddress, endAddress, ref overlaps);
+                count = _mappings.GetNodes(reprotectAddress, endAddress, ref overlaps);
             }
 
             bool success = true;
@@ -526,12 +535,12 @@ namespace Ryujinx.Memory.WindowsShared
         private void AddProtection(ulong address, ulong size, MemoryPermission permission)
         {
             ulong endAddress = address + size;
-            var overlaps = Array.Empty<IntervalTreeNode<ulong, MemoryPermission>>();
+            var overlaps = new RangeNode<MemoryPermission>[InitialOverlapsSize];
             int count;
 
             lock (_protections)
             {
-                count = _protections.Get(address, endAddress, ref overlaps);
+                count = _protections.GetNodes(address, endAddress, ref overlaps);
 
                 if (count == 1 &&
                     overlaps[0].Start <= address &&
@@ -569,17 +578,17 @@ namespace Ryujinx.Memory.WindowsShared
                     {
                         if (startAddress > protAddress)
                         {
-                            _protections.Add(protAddress, startAddress, protPermission);
+                            _protections.Add(new RangeNode<MemoryPermission>(protAddress, startAddress, protPermission));
                         }
 
                         if (endAddress < protEndAddress)
                         {
-                            _protections.Add(endAddress, protEndAddress, protPermission);
+                            _protections.Add(new RangeNode<MemoryPermission>(endAddress, protEndAddress, protPermission));
                         }
                     }
                 }
 
-                _protections.Add(startAddress, endAddress, permission);
+                _protections.Add(new RangeNode<MemoryPermission>(startAddress, endAddress, permission));
             }
         }
 
@@ -591,12 +600,12 @@ namespace Ryujinx.Memory.WindowsShared
         private void RemoveProtection(ulong address, ulong size)
         {
             ulong endAddress = address + size;
-            var overlaps = Array.Empty<IntervalTreeNode<ulong, MemoryPermission>>();
+            var overlaps = new RangeNode<MemoryPermission>[InitialOverlapsSize];
             int count;
 
             lock (_protections)
             {
-                count = _protections.Get(address, endAddress, ref overlaps);
+                count = _protections.GetNodes(address, endAddress, ref overlaps);
 
                 for (int index = 0; index < count; index++)
                 {
@@ -610,12 +619,12 @@ namespace Ryujinx.Memory.WindowsShared
 
                     if (address > protAddress)
                     {
-                        _protections.Add(protAddress, address, protPermission);
+                        _protections.Add(new RangeNode<MemoryPermission>(protAddress, address, protPermission));
                     }
 
                     if (endAddress < protEndAddress)
                     {
-                        _protections.Add(endAddress, protEndAddress, protPermission);
+                        _protections.Add(new RangeNode<MemoryPermission>(endAddress, protEndAddress, protPermission));
                     }
                 }
             }
@@ -629,12 +638,12 @@ namespace Ryujinx.Memory.WindowsShared
         private void RestoreRangeProtection(ulong address, ulong size)
         {
             ulong endAddress = address + size;
-            var overlaps = Array.Empty<IntervalTreeNode<ulong, MemoryPermission>>();
+            var overlaps = new RangeNode<MemoryPermission>[InitialOverlapsSize];
             int count;
 
             lock (_protections)
             {
-                count = _protections.Get(address, endAddress, ref overlaps);
+                count = _protections.GetNodes(address, endAddress, ref overlaps);
             }
 
             ulong startAddress = address;
